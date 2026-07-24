@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum OrganizationType {
+  fornecedor
+  sindico
+  administradora
+  master_admin
+}
+
+enum MemberRole {
+  master
+  operational
+}
+
+enum PlanAudience {
+  solicitante
+  fornecedor
+  platform
+}
+
+enum SubscriptionStatus {
+  pending
+  paid
+  active
+  failed
+  canceled
+  past_due
+}
+
+model User {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  passwordHash         String
+  name                 String
+  emailVerifiedAt      DateTime?
+  privacyAcceptedAt    DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  memberships          OrganizationMember[]
+  emailTokens          EmailToken[]
+  passwordResetTokens  PasswordResetToken[]
+  auditLogs            AuditLog[]
+  consentRecords       ConsentRecord[]
+}
+
+model Organization {
+  id        String           @id @default(cuid())
+  name      String
+  document  String?
+  type      OrganizationType
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  members       OrganizationMember[]
+  subscriptions Subscription[]
+  planOverrides PlanOverride[]
+}
+
+model OrganizationMember {
+  id             String     @id @default(cuid())
+  userId         String
+  organizationId String
+  role           MemberRole @default(master)
+  createdAt      DateTime   @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+model Plan {
+  id           String       @id @default(cuid())
+  slug         String       @unique
+  name         String
+  audience     PlanAudience
+  isFree       Boolean      @default(false)
+  monthlyQuota Int?
+  priceCents   Int          @default(0)
+  featuresJson String       @default("{}")
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  subscriptions Subscription[]
+  overrides     PlanOverride[]
+}
+
+model Subscription {
+  id             String             @id @default(cuid())
+  organizationId String
+  planId         String
+  status         SubscriptionStatus @default(active)
+  startsAt       DateTime           @default(now())
+  endsAt         DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         Plan         @relation(fields: [planId], references: [id])
+
+  @@index([organizationId])
+}
+
+model PlanOverride {
+  id             String   @id @default(cuid())
+  organizationId String
+  planId         String?
+  monthlyQuota   Int?
+  featuresJson   String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         Plan?        @relation(fields: [planId], references: [id])
+
+  @@unique([organizationId])
+}
+
+model ServiceCategory {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  colorToken String?
+  sortOrder  Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  items ServiceItem[]
+}
+
+model ServiceItem {
+  id              String   @id @default(cuid())
+  categoryId      String
+  name            String
+  slug            String
+  isMandatory     Boolean  @default(false)
+  periodicityHint String?
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  category ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, slug])
+  @@index([categoryId])
+}
+
+model LandingBanner {
+  id        String   @id @default(cuid())
+  title     String?
+  imageUrl  String
+  linkUrl   String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MarketingSettings {
+  id             String   @id @default("default")
+  whatsappUrl    String?
+  blogUrl        String?
+  pixelScripts   String?
+  supplierLpHost String?
+  updatedAt      DateTime @updatedAt
+}
+
+model PlatformSettings {
+  id                      String   @id @default("default")
+  freeQuotaSolicitante    Int      @default(15)
+  freeQuotaFornecedor     Int      @default(1)
+  reminderDaysJson        String   @default("[5,10]")
+  partnershipLockEnabled  Boolean  @default(true)
+  updatedAt               DateTime @updatedAt
+}
+
+model EmailToken {
+  id        String   @id @default(cuid())
+  userId    String
+  code      String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, code])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ConsentRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  accepted  Boolean
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String?
+  entityId   String?
+  metadata   String?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+}

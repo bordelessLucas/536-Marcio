@@ -1,0 +1,16 @@
+{
+  "hosting": {
+    "source": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "doc/**",
+      "prisma/*.db",
+      "prisma/*.db-journal"
+    ],
+    "frameworksBackend": {
+      "region": "us-central1"
+    }
+  }
+}
