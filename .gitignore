@@ -45,6 +45,9 @@ next-env.d.ts
 /prisma/*.db
 /prisma/*.db-journal
 
+# uploads locais (fallback sem Firebase Admin)
+/uploads/
+
 # documentação interna / planejamento (não versionar)
 /doc/
 

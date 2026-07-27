@@ -1,13 +1,8 @@
-import { MemberRole } from "@prisma/client";
-import { redirect } from "next/navigation";
 import { PlaceholderPage } from "@/components/app/PlaceholderPage";
-import { getSession } from "@/lib/auth/session";
+import { requireAuthorizedSession } from "@/lib/auth/guards";
 
 export default async function Page() {
-  const session = await getSession();
-  if (!session || session.role !== MemberRole.master) {
-    redirect("/app");
-  }
+  await requireAuthorizedSession({ href: "/app/financeiro" });
 
   return (
     <PlaceholderPage

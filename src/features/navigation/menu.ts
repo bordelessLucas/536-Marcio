@@ -85,28 +85,54 @@ const ALL_ITEMS: NavItem[] = [
     types: [OrganizationType.master_admin],
   },
   {
+    label: "Catálogo",
+    href: "/app/plataforma/catalogo",
+    icon: ClipboardList,
+    types: [OrganizationType.master_admin],
+  },
+  {
     label: "Configurações",
     href: "/app/configuracoes",
     icon: Settings,
   },
 ];
 
+export function canAccessNavItem(
+  item: NavItem,
+  input: {
+    organizationType: OrganizationType;
+    role: MemberRole;
+  },
+): boolean {
+  if (item.types && !item.types.includes(input.organizationType)) {
+    return false;
+  }
+  if (item.roles && !item.roles.includes(input.role)) {
+    return false;
+  }
+  if (item.financialOnly && input.role !== MemberRole.master) {
+    return false;
+  }
+  return true;
+}
+
+export function canAccessHref(
+  href: string,
+  input: {
+    organizationType: OrganizationType;
+    role: MemberRole;
+  },
+): boolean {
+  const item = ALL_ITEMS.find((navItem) => navItem.href === href);
+  if (!item) return true;
+  return canAccessNavItem(item, input);
+}
+
 export function getNavItemsForSession(input: {
   organizationType: OrganizationType;
   role: MemberRole;
 }): NavItem[] {
-  return ALL_ITEMS.filter((item) => {
-    if (item.types && !item.types.includes(input.organizationType)) {
-      return false;
-    }
-    if (item.roles && !item.roles.includes(input.role)) {
-      return false;
-    }
-    if (item.financialOnly && input.role !== MemberRole.master) {
-      return false;
-    }
-    return true;
-  });
+  return ALL_ITEMS.filter((item) => canAccessNavItem(item, input));
 }
 
 export function profileLabel(type: OrganizationType, role: MemberRole): string {

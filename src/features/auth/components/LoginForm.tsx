@@ -2,12 +2,14 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { loginAction, type ActionResult } from "@/features/auth/actions";
 import { Button } from "@/components/ui/Button";
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = searchParams.get("next") ?? "/app";
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ActionResult | null>(null);
 
@@ -22,15 +24,16 @@ export function LoginForm() {
               setResult(response);
               return;
             }
-            router.push("/app");
+            router.push(nextPath.startsWith("/app") ? nextPath : "/app");
             router.refresh();
           } catch {
-            router.push("/app");
+            router.push(nextPath.startsWith("/app") ? nextPath : "/app");
             router.refresh();
           }
         });
       }}
     >
+      <input type="hidden" name="next" value={nextPath} />
       <div>
         <label className="mb-1.5 block text-sm font-medium text-neutral-800" htmlFor="email">
           E-mail

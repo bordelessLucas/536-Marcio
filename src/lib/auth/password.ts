@@ -9,9 +9,9 @@ export async function verifyPassword(password: string, passwordHash: string): Pr
 }
 
 export function generateNumericCode(length = 6): string {
-  const max = 10 ** length;
-  const value = Math.floor(Math.random() * max);
-  return value.toString().padStart(length, "0");
+  const digits = new Uint8Array(length);
+  crypto.getRandomValues(digits);
+  return Array.from(digits, (byte) => (byte % 10).toString()).join("");
 }
 
 export function generateResetToken(): string {

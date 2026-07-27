@@ -1,0 +1,25 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOrgPath(orgId) {
+      return isAuthenticated()
+        && request.auth.token.organizationId == orgId;
+    }
+
+    // Anexos de cotações: organizations/{orgId}/quotations/{quotationId}/{fileName}
+    match /organizations/{orgId}/quotations/{quotationId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*|application/pdf|text/.*|application/vnd.*');
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

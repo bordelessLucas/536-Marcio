@@ -51,6 +51,22 @@ model User {
   consentRecords       ConsentRecord[]
 }
 
+enum QuotationStatus {
+  aberta
+  em_negociacao
+  aprovada
+  recusada
+  cancelada
+  encerrada
+}
+
+enum QuotationUrgency {
+  baixa
+  media
+  alta
+  critica
+}
+
 model Organization {
   id        String           @id @default(cuid())
   name      String
@@ -59,9 +75,13 @@ model Organization {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
-  members       OrganizationMember[]
-  subscriptions Subscription[]
-  planOverrides PlanOverride[]
+  members          OrganizationMember[]
+  subscriptions    Subscription[]
+  planOverrides    PlanOverride[]
+  condominiums     Condominium[]
+  quotations       Quotation[]
+  franchiseUsages  FranchiseUsage[]
+  domainEvents     DomainEvent[]
 }
 
 model OrganizationMember {
@@ -128,34 +148,130 @@ model PlanOverride {
 }
 
 model ServiceCategory {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   name       String
-  slug       String   @unique
+  slug       String    @unique
   colorToken String?
-  sortOrder  Int      @default(0)
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  sortOrder  Int       @default(0)
+  isActive   Boolean   @default(true)
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  items ServiceItem[]
+  items       ServiceItem[]
+  quotations  Quotation[]
 }
 
 model ServiceItem {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   categoryId      String
   name            String
   slug            String
-  isMandatory     Boolean  @default(false)
+  isMandatory     Boolean   @default(false)
   periodicityHint String?
-  sortOrder       Int      @default(0)
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  sortOrder       Int       @default(0)
+  isActive        Boolean   @default(true)
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  category ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category   ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  quotations Quotation[]
 
   @@unique([categoryId, slug])
   @@index([categoryId])
+}
+
+model Condominium {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  address        String
+  document       String?
+  contactName    String?
+  contactEmail   String?
+  contactPhone   String?
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quotations   Quotation[]
+
+  @@index([organizationId])
+  @@index([organizationId, name])
+}
+
+model Quotation {
+  id              String           @id @default(cuid())
+  publicId        String           @unique
+  organizationId  String
+  condominiumId   String
+  categoryId      String
+  serviceItemId   String
+  urgency         QuotationUrgency @default(media)
+  description     String
+  minProposals    Int              @default(3)
+  maxProposals    Int              @default(10)
+  status          QuotationStatus  @default(aberta)
+  createdByUserId String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  condominium  Condominium            @relation(fields: [condominiumId], references: [id])
+  category     ServiceCategory        @relation(fields: [categoryId], references: [id])
+  serviceItem  ServiceItem            @relation(fields: [serviceItemId], references: [id])
+  attachments  QuotationAttachment[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+  @@index([categoryId])
+  @@index([serviceItemId])
+}
+
+model QuotationAttachment {
+  id          String   @id @default(cuid())
+  quotationId String
+  fileName    String
+  storagePath String
+  contentType String?
+  sizeBytes   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId])
+}
+
+model FranchiseUsage {
+  id             String   @id @default(cuid())
+  organizationId String
+  yearMonth      String
+  usedCount      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, yearMonth])
+  @@index([organizationId])
+}
+
+model DomainEvent {
+  id             String   @id @default(cuid())
+  type           String
+  entityType     String
+  entityId       String
+  organizationId String?
+  payload        String?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([organizationId])
+  @@index([entityType, entityId])
 }
 
 model LandingBanner {

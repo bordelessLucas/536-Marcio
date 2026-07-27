@@ -171,8 +171,8 @@ export async function confirmEmailAction(formData: FormData): Promise<ActionResu
     }
 
     await prisma.$transaction([
-      prisma.emailToken.update({
-        where: { id: token.id },
+      prisma.emailToken.updateMany({
+        where: { userId: user.id, usedAt: null },
         data: { usedAt: new Date() },
       }),
       prisma.user.update({
@@ -223,7 +223,10 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
-      await writeAuditLog({ action: "auth.login_failed", metadata: { email } });
+      await writeAuditLog({
+        action: "auth.login_failed",
+        metadata: { emailDomain: email.split("@")[1] ?? "unknown" },
+      });
       return { ok: false, message: "E-mail ou senha inválidos." };
     }
 
@@ -249,13 +252,21 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
       entityId: user.id,
     });
 
-    redirect("/app");
+    redirect(safeAppPath(formData.get("next")));
   } catch (error) {
     if (typeof error === "object" && error && "digest" in error) {
       throw error;
     }
     return { ok: false, message: toPublicErrorMessage(error) };
   }
+}
+
+function safeAppPath(value: FormDataEntryValue | null): string {
+  const path = String(value ?? "/app");
+  if (path.startsWith("/app") && !path.startsWith("//") && !path.includes("://")) {
+    return path;
+  }
+  return "/app";
 }
 
 export async function logoutAction() {
@@ -338,15 +349,16 @@ export async function resetPasswordAction(formData: FormData): Promise<ActionRes
     }
 
     const passwordHash = await hashPassword(parsed.data.password);
+    const usedAt = new Date();
 
     await prisma.$transaction([
       prisma.user.update({
         where: { id: reset.userId },
         data: { passwordHash },
       }),
-      prisma.passwordResetToken.update({
-        where: { id: reset.id },
-        data: { usedAt: new Date() },
+      prisma.passwordResetToken.updateMany({
+        where: { userId: reset.userId, usedAt: null },
+        data: { usedAt },
       }),
     ]);
 

@@ -7,10 +7,17 @@
       "**/node_modules/**",
       "doc/**",
       "prisma/*.db",
-      "prisma/*.db-journal"
+      "prisma/*.db-journal",
+      "uploads/**"
     ],
     "frameworksBackend": {
       "region": "us-central1"
     }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
   }
 }

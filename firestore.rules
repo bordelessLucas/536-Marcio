@@ -1,0 +1,181 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Fields: email, name, emailVerifiedAt, organizationIds[], privacyAcceptedAt
+//
+// Collection: organizations
+// Fields: name, document?, type, createdAt
+//
+// Collection: organization_members
+// Doc ID: {userId}_{organizationId}
+// Fields: userId, organizationId, role
+//
+// Collection: service_categories
+// Fields: name, slug, colorToken, sortOrder, isActive, deletedAt?
+//
+// Collection: service_items
+// Fields: categoryId, name, slug, isMandatory, periodicityHint?, sortOrder, isActive, deletedAt?
+//
+// Collection: condominiums
+// Fields: organizationId, name, address, document?, contactName?, contactEmail?, contactPhone?, archivedAt?
+//
+// Collection: quotations
+// Fields: publicId, organizationId, condominiumId, categoryId, serviceItemId, urgency,
+//         description, minProposals, maxProposals, status, createdByUserId, createdAt
+//
+// Collection: franchise_usages
+// Doc ID: {organizationId}_{yearMonth}
+// Fields: organizationId, yearMonth, usedCount
+//
+// Collection: plans / subscriptions / plan_overrides / platform_settings / audit_logs
+// (espelho do domínio Dia 1)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function memberDoc(orgId) {
+      return get(/databases/$(database)/documents/organization_members/$(request.auth.uid + '_' + orgId));
+    }
+
+    function isOrgMember(orgId) {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/organization_members/$(request.auth.uid + '_' + orgId));
+    }
+
+    function isOrgMaster(orgId) {
+      return isOrgMember(orgId) && memberDoc(orgId).data.role == 'master';
+    }
+
+    function isMasterAdmin() {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isMasterAdmin == true;
+    }
+
+    function isValidCategory() {
+      return request.resource.data.keys().hasAll(['name', 'slug', 'sortOrder', 'isActive'])
+        && request.resource.data.name is string
+        && request.resource.data.slug is string
+        && request.resource.data.sortOrder is int
+        && request.resource.data.isActive is bool;
+    }
+
+    function isValidServiceItem() {
+      return request.resource.data.keys().hasAll(['categoryId', 'name', 'slug', 'sortOrder', 'isActive', 'isMandatory'])
+        && request.resource.data.categoryId is string
+        && request.resource.data.name is string
+        && request.resource.data.slug is string
+        && request.resource.data.sortOrder is int
+        && request.resource.data.isActive is bool
+        && request.resource.data.isMandatory is bool;
+    }
+
+    function isValidCondominium() {
+      return request.resource.data.keys().hasAll(['organizationId', 'name', 'address'])
+        && request.resource.data.organizationId is string
+        && request.resource.data.name is string
+        && request.resource.data.address is string;
+    }
+
+    function isValidQuotation() {
+      return request.resource.data.keys().hasAll([
+          'publicId', 'organizationId', 'condominiumId', 'categoryId', 'serviceItemId',
+          'urgency', 'description', 'minProposals', 'maxProposals', 'status', 'createdByUserId'
+        ])
+        && request.resource.data.organizationId is string
+        && request.resource.data.minProposals is int
+        && request.resource.data.maxProposals is int
+        && request.resource.data.minProposals > 0
+        && request.resource.data.maxProposals >= request.resource.data.minProposals;
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isMasterAdmin());
+      allow write: if false;
+    }
+
+    match /organizations/{orgId} {
+      allow read: if isOrgMember(orgId) || isMasterAdmin();
+      allow write: if false;
+    }
+
+    match /organization_members/{memberId} {
+      allow read: if isAuthenticated()
+        && (resource.data.userId == request.auth.uid || isMasterAdmin());
+      allow write: if false;
+    }
+
+    match /service_categories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isMasterAdmin() && isValidCategory();
+      allow delete: if false;
+    }
+
+    match /service_items/{itemId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isMasterAdmin() && isValidServiceItem();
+      allow delete: if false;
+    }
+
+    match /condominiums/{condoId} {
+      allow read: if isOrgMember(resource.data.organizationId) || isMasterAdmin();
+      allow create: if isOrgMember(request.resource.data.organizationId) && isValidCondominium();
+      allow update: if isOrgMember(resource.data.organizationId)
+        && request.resource.data.organizationId == resource.data.organizationId
+        && isValidCondominium();
+      allow delete: if false;
+    }
+
+    match /quotations/{quotationId} {
+      allow read: if isOrgMember(resource.data.organizationId) || isMasterAdmin();
+      allow create: if isOrgMember(request.resource.data.organizationId)
+        && request.resource.data.createdByUserId == request.auth.uid
+        && isValidQuotation();
+      allow update: if isOrgMember(resource.data.organizationId)
+        && request.resource.data.organizationId == resource.data.organizationId;
+      allow delete: if false;
+    }
+
+    match /franchise_usages/{usageId} {
+      allow read: if isOrgMember(resource.data.organizationId) || isMasterAdmin();
+      allow write: if false;
+    }
+
+    match /plans/{planId} {
+      allow read: if isAuthenticated();
+      allow write: if isMasterAdmin();
+    }
+
+    match /subscriptions/{subId} {
+      allow read: if isOrgMember(resource.data.organizationId) || isMasterAdmin();
+      allow write: if false;
+    }
+
+    match /plan_overrides/{overrideId} {
+      allow read: if isOrgMember(resource.data.organizationId) || isMasterAdmin();
+      allow write: if isMasterAdmin();
+    }
+
+    match /platform_settings/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isMasterAdmin();
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isMasterAdmin();
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

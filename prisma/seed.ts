@@ -282,6 +282,10 @@ async function main() {
     }
   }
 
+  const { seedOfficialCatalog } = await import("../src/features/catalog/seed");
+  const catalog = await seedOfficialCatalog();
+  console.log(`Catálogo seed: ${catalog.categoryCount} categorias / ${catalog.itemCount} serviços`);
+
   console.log("Seed concluído. Senha das contas demo: Demo@123456");
   for (const demo of demos) {
     console.log(` - ${demo.email}`);

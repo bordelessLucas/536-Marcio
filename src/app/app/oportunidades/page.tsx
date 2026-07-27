@@ -1,6 +1,9 @@
 import { PlaceholderPage } from "@/components/app/PlaceholderPage";
+import { requireAuthorizedSession } from "@/lib/auth/guards";
 
-export default function Page() {
+export default async function Page() {
+  await requireAuthorizedSession({ href: "/app/oportunidades" });
+
   return (
     <PlaceholderPage
       title="Oportunidades"

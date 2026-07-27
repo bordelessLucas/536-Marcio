@@ -13,6 +13,7 @@ const eslintConfig = [
   {
     ignores: [
       ".next/**",
+      ".firebase/**",
       "node_modules/**",
       "prisma/dev.db",
       "public/**",
