@@ -3,7 +3,11 @@ import { MemberRole, OrganizationType } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { profileLabel } from "@/features/navigation/menu";
-import { getDashboardKpis } from "@/features/quotations/kpis";
+import {
+  getDashboardKpis,
+  getSupplierDashboardKpis,
+} from "@/features/quotations/kpis";
+import { markOverdueCompliance } from "@/features/compliance/expire";
 import { Button } from "@/components/ui/Button";
 
 export default async function AppHomePage() {
@@ -14,10 +18,21 @@ export default async function AppHomePage() {
   const isSolicitante =
     session.organizationType === OrganizationType.sindico ||
     session.organizationType === OrganizationType.administradora;
-  const kpis = await getDashboardKpis({
-    organizationId: session.organizationId,
-    organizationType: session.organizationType,
-  });
+  const isFornecedor = session.organizationType === OrganizationType.fornecedor;
+
+  if (isFornecedor) {
+    await markOverdueCompliance(session.organizationId);
+  }
+
+  const kpis = isFornecedor
+    ? null
+    : await getDashboardKpis({
+        organizationId: session.organizationId,
+        organizationType: session.organizationType,
+      });
+  const supplierKpis = isFornecedor
+    ? await getSupplierDashboardKpis(session.organizationId)
+    : null;
 
   const highlights: Record<string, string[]> = {
     [OrganizationType.sindico]: [
@@ -49,7 +64,7 @@ export default async function AppHomePage() {
     ],
   };
 
-  const cards = isSolicitante
+  const cards = isSolicitante && kpis
     ? [
         { title: "Cotações abertas", value: String(kpis.openQuotations) },
         { title: "Propostas recebidas", value: String(kpis.proposalsReceived) },
@@ -65,12 +80,24 @@ export default async function AppHomePage() {
             : `Usadas ${kpis.franchiseUsed} de ${kpis.franchiseLimit}`,
         },
       ]
-    : session.organizationType === OrganizationType.fornecedor
+    : supplierKpis
       ? [
-          { title: "Oportunidades", value: "0", hint: "Dia 3" },
-          { title: "Propostas enviadas", value: "0", hint: "Dia 3" },
-          { title: "Aprovadas", value: "0" },
-          { title: "Recusadas", value: "0" },
+          {
+            title: "Oportunidades",
+            value: String(supplierKpis.pendingOpportunities),
+            hint: "Pendentes",
+          },
+          { title: "Propostas enviadas", value: String(supplierKpis.proposalsSent) },
+          { title: "Aprovadas", value: String(supplierKpis.approved) },
+          {
+            title: "Saldo do mês",
+            value: supplierKpis.isUnlimited
+              ? "∞"
+              : String(supplierKpis.franchiseRemaining ?? 0),
+            hint: supplierKpis.isUnlimited
+              ? "Ilimitado"
+              : `Usadas ${supplierKpis.franchiseUsed} de ${supplierKpis.franchiseLimit}`,
+          },
         ]
       : [
           { title: "Categorias", value: "13", hint: "Seed oficial" },
@@ -92,7 +119,7 @@ export default async function AppHomePage() {
             como <span className="font-semibold text-neutral-800">{label}</span>.
           </p>
         </div>
-        {isSolicitante ? (
+        {isSolicitante && kpis ? (
           kpis.canCreateQuotation ? (
             <Link href="/app/cotacoes/nova">
               <Button>Nova cotação</Button>
@@ -105,6 +132,16 @@ export default async function AppHomePage() {
               </p>
             </div>
           )
+        ) : null}
+        {isFornecedor ? (
+          <div className="flex flex-wrap gap-2">
+            <Link href="/app/oportunidades">
+              <Button>Oportunidades</Button>
+            </Link>
+            <Link href="/app/compliance">
+              <Button variant="secondary">Compliance</Button>
+            </Link>
+          </div>
         ) : null}
         {session.organizationType === OrganizationType.master_admin ? (
           <Link href="/app/plataforma/catalogo">
@@ -127,6 +164,26 @@ export default async function AppHomePage() {
           </div>
         ))}
       </div>
+
+      {supplierKpis && supplierKpis.overdueDocuments > 0 ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800">
+          {supplierKpis.overdueDocuments} documento(s) em atraso.{" "}
+          <Link href="/app/compliance" className="font-semibold underline">
+            Regularizar compliance
+          </Link>
+        </div>
+      ) : null}
+
+      {isFornecedor ? (
+        <div className="flex flex-wrap gap-3 text-sm">
+          <Link href="/app/oportunidades?view=lista&status=pendente" className="font-semibold text-[#9333EA] hover:underline">
+            Ver pendentes →
+          </Link>
+          <Link href="/app/meu-plano" className="font-semibold text-[#9333EA] hover:underline">
+            Meu Plano →
+          </Link>
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border border-black/5 bg-white/80 p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-neutral-900">O que este perfil pode fazer</h2>

@@ -1,0 +1,171 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { OrganizationType } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { requireAuthorizedSession } from "@/lib/auth/guards";
+import { toPublicErrorMessage } from "@/lib/errors";
+import { writeAuditLog } from "@/lib/audit";
+import { storeComplianceDocument } from "@/lib/storage";
+import {
+  complianceReviewSchema,
+  complianceUploadSchema,
+} from "@/features/compliance/schemas";
+import { markOverdueCompliance } from "@/features/compliance/expire";
+
+export type ActionResult = { ok: boolean; message?: string };
+
+export async function uploadComplianceDocumentAction(
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const session = await requireAuthorizedSession({
+      types: [OrganizationType.fornecedor],
+      href: "/app/compliance",
+    });
+
+    const parsed = complianceUploadSchema.safeParse({
+      documentType: formData.get("documentType"),
+      validUntil: formData.get("validUntil"),
+    });
+    if (!parsed.success) {
+      return { ok: false, message: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+    }
+
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      return { ok: false, message: "Selecione um arquivo." };
+    }
+
+    const validUntil = new Date(parsed.data.validUntil);
+    if (Number.isNaN(validUntil.getTime())) {
+      return { ok: false, message: "Data de validade inválida." };
+    }
+
+    const replacesId = String(formData.get("replacesId") || "") || null;
+    if (replacesId) {
+      const previous = await prisma.complianceDocument.findFirst({
+        where: { id: replacesId, organizationId: session.organizationId },
+      });
+      if (!previous) return { ok: false, message: "Documento anterior não encontrado." };
+    }
+
+    const stored = await storeComplianceDocument({
+      organizationId: session.organizationId,
+      file,
+    });
+
+    const created = await prisma.complianceDocument.create({
+      data: {
+        organizationId: session.organizationId,
+        documentType: parsed.data.documentType,
+        fileName: stored.fileName,
+        storagePath: stored.storagePath,
+        contentType: stored.contentType,
+        sizeBytes: stored.sizeBytes,
+        validUntil,
+        status: "em_analise",
+        replacesId,
+      },
+    });
+
+    await prisma.domainEvent.create({
+      data: {
+        type: "compliance.updated",
+        entityType: "compliance_document",
+        entityId: created.id,
+        organizationId: session.organizationId,
+        payload: JSON.stringify({ status: created.status, documentType: created.documentType }),
+      },
+    });
+
+    await writeAuditLog({
+      userId: session.userId,
+      action: "compliance.uploaded",
+      entityType: "compliance_document",
+      entityId: created.id,
+    });
+
+    revalidatePath("/app/compliance");
+    revalidatePath("/app/plataforma/compliance");
+    return { ok: true, message: "Documento enviado para análise." };
+  } catch (error) {
+    return { ok: false, message: toPublicErrorMessage(error) };
+  }
+}
+
+export async function reviewComplianceDocumentAction(
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const session = await requireAuthorizedSession({
+      types: [OrganizationType.master_admin],
+      href: "/app/plataforma/compliance",
+    });
+
+    const parsed = complianceReviewSchema.safeParse({
+      documentId: formData.get("documentId"),
+      decision: formData.get("decision"),
+      reviewNotes: formData.get("reviewNotes") || undefined,
+    });
+    if (!parsed.success) {
+      return { ok: false, message: "Dados inválidos" };
+    }
+
+    const doc = await prisma.complianceDocument.findUnique({
+      where: { id: parsed.data.documentId },
+    });
+    if (!doc) return { ok: false, message: "Documento não encontrado." };
+
+    const updated = await prisma.complianceDocument.update({
+      where: { id: doc.id },
+      data: {
+        status: parsed.data.decision,
+        reviewNotes: parsed.data.reviewNotes || null,
+        reviewedAt: new Date(),
+        reviewedByUserId: session.userId,
+      },
+    });
+
+    await prisma.domainEvent.create({
+      data: {
+        type: "compliance.updated",
+        entityType: "compliance_document",
+        entityId: updated.id,
+        organizationId: updated.organizationId,
+        payload: JSON.stringify({
+          status: updated.status,
+          reviewNotes: updated.reviewNotes,
+        }),
+      },
+    });
+
+    await writeAuditLog({
+      userId: session.userId,
+      action: "compliance.reviewed",
+      entityType: "compliance_document",
+      entityId: updated.id,
+      metadata: { decision: parsed.data.decision },
+    });
+
+    revalidatePath("/app/compliance");
+    revalidatePath("/app/plataforma/compliance");
+    return {
+      ok: true,
+      message: parsed.data.decision === "aprovado" ? "Documento aprovado." : "Documento negado.",
+    };
+  } catch (error) {
+    return { ok: false, message: toPublicErrorMessage(error) };
+  }
+}
+
+export async function refreshComplianceOverdueAction(): Promise<ActionResult> {
+  try {
+    const count = await markOverdueCompliance();
+    revalidatePath("/app/compliance");
+    revalidatePath("/app/plataforma/compliance");
+    return { ok: true, message: `${count} documento(s) marcados como em atraso.` };
+  } catch (error) {
+    return { ok: false, message: toPublicErrorMessage(error) };
+  }
+}

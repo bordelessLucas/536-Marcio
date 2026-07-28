@@ -21,17 +21,27 @@ export default async function Page() {
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         {[
-          "Franquia Free global / override por cliente",
-          "CRUD de categorias e serviços",
-          "Banners da landing (até 10)",
-          "WhatsApp e Blog externos",
-          "Auditoria de compliance",
-          "Migrações e planos",
-        ].map((item) => (
-          <div key={item} className="rounded-2xl border border-black/5 bg-white/80 p-5 text-sm font-medium">
-            {item}
-          </div>
-        ))}
+          { label: "Franquia Free global / override por cliente", href: null },
+          { label: "CRUD de categorias e serviços", href: "/app/plataforma/catalogo" },
+          { label: "Fila de compliance", href: "/app/plataforma/compliance" },
+          { label: "Banners da landing (até 10)", href: null },
+          { label: "WhatsApp e Blog externos", href: null },
+          { label: "Migrações e planos", href: null },
+        ].map((item) =>
+          item.href ? (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="rounded-2xl border border-black/5 bg-white/80 p-5 text-sm font-medium hover:border-[#9333EA]/30"
+            >
+              {item.label}
+            </Link>
+          ) : (
+            <div key={item.label} className="rounded-2xl border border-black/5 bg-white/80 p-5 text-sm font-medium">
+              {item.label}
+            </div>
+          ),
+        )}
       </div>
     </div>
   );

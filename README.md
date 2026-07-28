@@ -5,10 +5,10 @@ Plataforma SaaS de cotações para condomínios.
 ## Stack
 
 - Next.js 15 (App Router) + TypeScript + Tailwind CSS 4
-- **Firebase** (projeto `marcio-ab7d9`): Auth, Firestore, Storage, Analytics
+- **Firebase** (projeto `marcio-ab7d9`): Storage + Security Rules (Spark)
+- Persistência bootstrap: Prisma + SQLite (Auth JWT local; Firebase Auth depois)
 - Poppins + assets em `/public/brand`
-
-> O bootstrap do Dia 1 ainda possui session JWT + SQLite local para as telas. O alvo oficial de dados/auth é **Firebase** (não Supabase).
+- **Deploy do app:** Vercel (plano free) — **não** usamos Firebase App Hosting / Blaze
 
 ## Setup local
 
@@ -16,7 +16,7 @@ Plataforma SaaS de cotações para condomínios.
 cp .env.example .env
 # Preencha as variáveis NEXT_PUBLIC_FIREBASE_* (já no .env do time)
 npm install
-npm run db:setup   # bootstrap local temporário
+npm run db:setup   # bootstrap local
 npm run dev
 ```
 
@@ -24,7 +24,7 @@ Abra [http://localhost:3000](http://localhost:3000).
 
 ### Contas demo (bootstrap local)
 
-Senha: `Demo@123456`
+Senha: `123456` (Firebase Auth)
 
 | E-mail | Perfil |
 |--------|--------|
@@ -38,8 +38,30 @@ Senha: `Demo@123456`
 
 - `npm run dev` — desenvolvimento
 - `npm run lint` / `npm run typecheck`
-- `npm run db:setup` — push schema local + seed (temporário)
+- `npm run db:setup` — push schema local + seed
+- `npm run seed:firebase-auth` — cria/sincroniza usuários demo no Firebase Auth (senha `123456`)
 - `npm run build` — build de produção
+- `npm run smoke:dia-02` / `npm run smoke:dia-03`
+- `npm run jobs:compliance-expire` — marca docs vencidos como `em_atraso` (sem Cloud Functions)
+
+## Deploy (Spark-compatible)
+
+### App Next.js → Vercel
+
+1. Conecte o repositório na Vercel.
+2. Configure as env vars (`.env.example`): `AUTH_SECRET`, `DATABASE_URL`, Firebase `NEXT_PUBLIC_*`, opcionalmente `FIREBASE_SERVICE_ACCOUNT_JSON`.
+3. Em produção com Vercel, prefira Postgres (`DATABASE_URL`) no lugar de SQLite file.
+4. Build command: `npm run build`.
+
+### Firebase (Spark) — rules + Storage + landing estática
+
+```bash
+npx firebase-tools@latest deploy --only firestore:rules,storage,hosting --project marcio-ab7d9
+```
+
+- `firebase.json` **não** usa `frameworksBackend` (exige Blaze).
+- Hosting Firebase serve só `hosting-static/` (landing mínima).
+- Anexos: Firebase Storage via Admin SDK se houver service account; senão `/uploads` local.
 
 ## Documentação
 

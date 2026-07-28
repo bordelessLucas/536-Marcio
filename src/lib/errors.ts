@@ -18,5 +18,12 @@ export function toPublicErrorMessage(error: unknown): string {
     return "Sessão expirada. Faça login novamente.";
   }
 
+  if (
+    error instanceof Error &&
+    (error as Error & { firebaseCode?: string }).firebaseCode
+  ) {
+    return error.message;
+  }
+
   return "Não foi possível concluir a operação. Tente novamente.";
 }

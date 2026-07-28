@@ -6,12 +6,24 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { loginAction, type ActionResult } from "@/features/auth/actions";
 import { Button } from "@/components/ui/Button";
 
+const DEMO_PASSWORD = "123456";
+
+const DEMO_ACCOUNTS = [
+  { email: "sindico@demo.cotacondo.com.br", label: "Síndico" },
+  { email: "fornecedor@demo.cotacondo.com.br", label: "Fornecedor" },
+  { email: "adm.master@demo.cotacondo.com.br", label: "Adm Master" },
+  { email: "adm.operacional@demo.cotacondo.com.br", label: "Adm Operacional" },
+  { email: "admin@cotacondo.com.br", label: "Master Admin" },
+] as const;
+
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") ?? "/app";
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ActionResult | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   return (
     <form
@@ -43,6 +55,8 @@ export function LoginForm() {
           name="email"
           type="email"
           required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
           className="h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none ring-fuchsia-200 focus:ring-2"
           placeholder="voce@empresa.com.br"
         />
@@ -56,6 +70,8 @@ export function LoginForm() {
           name="password"
           type="password"
           required
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
           className="h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none ring-fuchsia-200 focus:ring-2"
           placeholder="••••••••"
         />
@@ -77,6 +93,32 @@ export function LoginForm() {
           Criar conta
         </Link>
       </div>
+
+      {process.env.NEXT_PUBLIC_APP_ENV !== "production" ? (
+        <div className="rounded-2xl border border-black/5 bg-black/[0.02] p-4 text-xs text-neutral-600">
+          <p className="font-semibold text-neutral-800">
+            Contas demo · Firebase Auth (senha: {DEMO_PASSWORD})
+          </p>
+          <p className="mt-1 text-neutral-500">Clique para preencher e-mail e senha.</p>
+          <ul className="mt-2 space-y-1">
+            {DEMO_ACCOUNTS.map((account) => (
+              <li key={account.email}>
+                <button
+                  type="button"
+                  className="text-left hover:text-[#9333EA] hover:underline"
+                  onClick={() => {
+                    setEmail(account.email);
+                    setPassword(DEMO_PASSWORD);
+                    setResult(null);
+                  }}
+                >
+                  {account.email} — {account.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </form>
   );
 }

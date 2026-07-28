@@ -53,8 +53,21 @@ const ALL_ITEMS: NavItem[] = [
     types: [OrganizationType.fornecedor],
   },
   {
+    label: "Meu Plano",
+    href: "/app/meu-plano",
+    icon: Wallet,
+    types: [OrganizationType.fornecedor],
+  },
+  {
     label: "Parcerias",
     href: "/app/parcerias",
+    icon: Handshake,
+    types: [OrganizationType.administradora],
+    roles: [MemberRole.master],
+  },
+  {
+    label: "Favoritos",
+    href: "/app/favoritos",
     icon: Handshake,
     types: [OrganizationType.administradora],
     roles: [MemberRole.master],
@@ -88,6 +101,12 @@ const ALL_ITEMS: NavItem[] = [
     label: "Catálogo",
     href: "/app/plataforma/catalogo",
     icon: ClipboardList,
+    types: [OrganizationType.master_admin],
+  },
+  {
+    label: "Compliance",
+    href: "/app/plataforma/compliance",
+    icon: FileCheck2,
     types: [OrganizationType.master_admin],
   },
   {

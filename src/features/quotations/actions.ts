@@ -142,9 +142,27 @@ export async function createQuotationAction(formData: FormData): Promise<ActionR
       metadata: { publicId: quotation.publicId },
     });
 
+    const { runDistributionEngine } = await import("@/features/distribution/engine");
+    const distribution = await runDistributionEngine(quotation.id);
+    await writeAuditLog({
+      userId: session.userId,
+      action: "distribution.ran",
+      entityType: "quotation",
+      entityId: quotation.id,
+      metadata: {
+        invited: distribution.invited.length,
+        skipped: distribution.skipped.length,
+      },
+    });
+
     revalidatePath("/app");
     revalidatePath("/app/cotacoes");
-    return { ok: true, message: "Cotação aberta.", quotationId: quotation.id };
+    revalidatePath("/app/oportunidades");
+    return {
+      ok: true,
+      message: `Cotação aberta. ${distribution.invited.length} fornecedor(es) convidado(s).`,
+      quotationId: quotation.id,
+    };
   } catch (error) {
     if (error instanceof AppError) {
       return { ok: false, message: error.message };

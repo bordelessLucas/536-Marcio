@@ -68,7 +68,7 @@ async function main() {
   for (const c of cases) {
     const user = await prisma.user.findUnique({ where: { email: c.email } });
     if (!user?.emailVerifiedAt) throw new Error("user missing " + c.email);
-    if (!(await verifyPassword("Demo@123456", user.passwordHash))) {
+    if (!(await verifyPassword("123456", user.passwordHash))) {
       throw new Error("password fail " + c.email);
     }
     for (const href of c.allow) {

@@ -9,7 +9,6 @@ import {
   generateNumericCode,
   generateResetToken,
   hashPassword,
-  verifyPassword,
 } from "@/lib/auth/password";
 import {
   buildSessionForUser,
@@ -17,6 +16,12 @@ import {
   createSessionToken,
   setSessionCookie,
 } from "@/lib/auth/session";
+import {
+  firebaseSendPasswordResetEmail,
+  firebaseSignInWithPassword,
+  firebaseSignUp,
+  isFirebaseAuthConfigured,
+} from "@/lib/firebase/auth-rest";
 import {
   confirmEmailSchema,
   forgotPasswordSchema,
@@ -46,6 +51,10 @@ function planSlugForType(type: OrganizationType): string {
 
 export async function registerAction(formData: FormData): Promise<ActionResult> {
   try {
+    if (!isFirebaseAuthConfigured()) {
+      return { ok: false, message: "Firebase Auth não configurado no ambiente." };
+    }
+
     const parsed = registerSchema.safeParse({
       name: formData.get("name"),
       email: formData.get("email"),
@@ -61,9 +70,18 @@ export async function registerAction(formData: FormData): Promise<ActionResult> 
     }
 
     const data = parsed.data;
-    const existing = await prisma.user.findUnique({ where: { email: data.email.toLowerCase() } });
+    const email = data.email.toLowerCase();
+    const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       return { ok: false, message: "Já existe uma conta com este e-mail." };
+    }
+
+    let firebaseUid: string;
+    try {
+      const firebaseUser = await firebaseSignUp(email, data.password);
+      firebaseUid = firebaseUser.localId;
+    } catch (error) {
+      return { ok: false, message: toPublicErrorMessage(error) };
     }
 
     const passwordHash = await hashPassword(data.password);
@@ -72,8 +90,9 @@ export async function registerAction(formData: FormData): Promise<ActionResult> 
     const user = await prisma.user.create({
       data: {
         name: data.name,
-        email: data.email.toLowerCase(),
+        email,
         passwordHash,
+        firebaseUid,
         privacyAcceptedAt: new Date(),
         consentRecords: {
           create: {
@@ -125,10 +144,9 @@ export async function registerAction(formData: FormData): Promise<ActionResult> 
       action: "auth.register",
       entityType: "user",
       entityId: user.id,
-      metadata: { organizationType },
+      metadata: { organizationType, firebaseUid },
     });
 
-    // Em produção: enviar e-mail. No Dia 1 (local): devolver código em dev.
     return {
       ok: true,
       message: "Cadastro realizado. Confirme o código enviado ao e-mail.",
@@ -210,6 +228,10 @@ export async function confirmEmailAction(formData: FormData): Promise<ActionResu
 
 export async function loginAction(formData: FormData): Promise<ActionResult> {
   try {
+    if (!isFirebaseAuthConfigured()) {
+      return { ok: false, message: "Firebase Auth não configurado no ambiente." };
+    }
+
     const parsed = loginSchema.safeParse({
       email: formData.get("email"),
       password: formData.get("password"),
@@ -220,14 +242,32 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
     }
 
     const email = parsed.data.email.toLowerCase();
-    const user = await prisma.user.findUnique({ where: { email } });
 
-    if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+    let firebaseUid: string;
+    try {
+      const firebaseUser = await firebaseSignInWithPassword(email, parsed.data.password);
+      firebaseUid = firebaseUser.localId;
+    } catch (error) {
       await writeAuditLog({
         action: "auth.login_failed",
-        metadata: { emailDomain: email.split("@")[1] ?? "unknown" },
+        metadata: { emailDomain: email.split("@")[1] ?? "unknown", provider: "firebase" },
       });
-      return { ok: false, message: "E-mail ou senha inválidos." };
+      return { ok: false, message: toPublicErrorMessage(error) };
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return {
+        ok: false,
+        message: "Conta autenticada no Firebase, mas sem perfil na plataforma. Contate o suporte.",
+      };
+    }
+
+    if (user.firebaseUid !== firebaseUid) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { firebaseUid },
+      });
     }
 
     if (!user.emailVerifiedAt) {
@@ -250,6 +290,7 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
       action: "auth.login_success",
       entityType: "user",
       entityId: user.id,
+      metadata: { provider: "firebase", firebaseUid },
     });
 
     redirect(safeAppPath(formData.get("next")));
@@ -292,38 +333,33 @@ export async function forgotPasswordAction(formData: FormData): Promise<ActionRe
     }
 
     const email = parsed.data.email.toLowerCase();
-    const user = await prisma.user.findUnique({ where: { email } });
-
-    // Resposta genérica (não vazar existência do e-mail)
     const generic = {
       ok: true,
       message: "Se o e-mail existir, enviaremos um link de recuperação.",
     };
 
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return generic;
     }
 
-    const token = generateResetToken();
-    await prisma.passwordResetToken.create({
-      data: {
-        userId: user.id,
-        token,
-        expiresAt: new Date(Date.now() + 1000 * 60 * 60),
-      },
-    });
+    try {
+      if (isFirebaseAuthConfigured()) {
+        await firebaseSendPasswordResetEmail(email);
+      }
+    } catch {
+      // resposta genérica — não vazar existência / erros do provedor
+    }
 
     await writeAuditLog({
       userId: user.id,
       action: "auth.password_reset_requested",
       entityType: "user",
       entityId: user.id,
+      metadata: { provider: "firebase" },
     });
 
-    return {
-      ...generic,
-      resetToken: process.env.NEXT_PUBLIC_APP_ENV !== "production" ? token : undefined,
-    };
+    return generic;
   } catch (error) {
     return { ok: false, message: toPublicErrorMessage(error) };
   }

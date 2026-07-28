@@ -38,6 +38,7 @@ model User {
   id                   String    @id @default(cuid())
   email                String    @unique
   passwordHash         String
+  firebaseUid          String?   @unique
   name                 String
   emailVerifiedAt      DateTime?
   privacyAcceptedAt    DateTime?
@@ -58,6 +59,7 @@ enum QuotationStatus {
   recusada
   cancelada
   encerrada
+  finalizada_outros
 }
 
 enum QuotationUrgency {
@@ -75,13 +77,20 @@ model Organization {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
-  members          OrganizationMember[]
-  subscriptions    Subscription[]
-  planOverrides    PlanOverride[]
-  condominiums     Condominium[]
-  quotations       Quotation[]
-  franchiseUsages  FranchiseUsage[]
-  domainEvents     DomainEvent[]
+  members              OrganizationMember[]
+  subscriptions        Subscription[]
+  planOverrides        PlanOverride[]
+  condominiums         Condominium[]
+  quotations           Quotation[]
+  franchiseUsages      FranchiseUsage[]
+  domainEvents         DomainEvent[]
+  categories           OrganizationCategory[]
+  complianceDocuments  ComplianceDocument[]
+  quotationInvites     QuotationInvite[]
+  proposals            Proposal[]
+  favoriteSuppliers    FavoriteSupplier[]      @relation("FavoriteOwner")
+  favoritedBy          FavoriteSupplier[]      @relation("FavoriteSupplierOrg")
+  negotiationMessages  NegotiationMessage[]
 }
 
 model OrganizationMember {
@@ -158,8 +167,172 @@ model ServiceCategory {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  items       ServiceItem[]
-  quotations  Quotation[]
+  items              ServiceItem[]
+  quotations         Quotation[]
+  organizationLinks  OrganizationCategory[]
+  favoriteLinks      FavoriteSupplier[]
+}
+
+model OrganizationCategory {
+  id             String   @id @default(cuid())
+  organizationId String
+  categoryId     String
+  isIncluded     Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category     ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, categoryId])
+  @@index([organizationId])
+  @@index([categoryId])
+}
+
+enum ComplianceStatus {
+  aprovado
+  em_analise
+  em_atraso
+  negada
+}
+
+model ComplianceDocument {
+  id             String           @id @default(cuid())
+  organizationId String
+  documentType   String
+  fileName       String
+  storagePath    String
+  contentType    String?
+  sizeBytes      Int              @default(0)
+  validUntil     DateTime
+  status         ComplianceStatus @default(em_analise)
+  reviewNotes    String?
+  reviewedAt     DateTime?
+  reviewedByUserId String?
+  replacesId     String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  replaces     ComplianceDocument? @relation("ComplianceHistory", fields: [replacesId], references: [id], onDelete: SetNull)
+  renewals     ComplianceDocument[] @relation("ComplianceHistory")
+
+  @@index([organizationId, status])
+  @@index([organizationId, documentType])
+  @@index([validUntil])
+}
+
+enum InviteStatus {
+  pendente
+  aceito
+  declinado
+  expirado
+}
+
+enum ProposalStatus {
+  enviada
+  em_negociacao
+  aprovada
+  recusada
+}
+
+model QuotationInvite {
+  id                   String       @id @default(cuid())
+  quotationId          String
+  supplierOrgId        String
+  status               InviteStatus @default(pendente)
+  priorityTier         Int          @default(4)
+  selectionReason      String?
+  declineReason        String?
+  acceptedAt           DateTime?
+  declinedAt           DateTime?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  quotation  Quotation    @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  supplier   Organization @relation(fields: [supplierOrgId], references: [id], onDelete: Cascade)
+  proposal   Proposal?
+
+  @@unique([quotationId, supplierOrgId])
+  @@index([supplierOrgId, status])
+  @@index([quotationId])
+}
+
+model Proposal {
+  id             String         @id @default(cuid())
+  inviteId       String         @unique
+  organizationId String
+  quotationId    String
+  status         ProposalStatus @default(enviada)
+  createdByUserId String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  invite       QuotationInvite    @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quotation    Quotation          @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  conditions   ProposalCondition[]
+  messages     NegotiationMessage[]
+
+  @@index([organizationId, status])
+  @@index([quotationId])
+}
+
+model NegotiationMessage {
+  id             String   @id @default(cuid())
+  proposalId     String
+  organizationId String
+  authorUserId   String
+  body           String
+  createdAt      DateTime @default(now())
+
+  proposal     Proposal     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId, createdAt])
+}
+
+model FavoriteSupplier {
+  id             String   @id @default(cuid())
+  organizationId String
+  supplierOrgId  String
+  categoryId     String?
+  createdAt      DateTime @default(now())
+
+  organization Organization     @relation("FavoriteOwner", fields: [organizationId], references: [id], onDelete: Cascade)
+  supplier     Organization     @relation("FavoriteSupplierOrg", fields: [supplierOrgId], references: [id], onDelete: Cascade)
+  category     ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, supplierOrgId])
+  @@index([organizationId])
+  @@index([supplierOrgId])
+}
+
+model ProposalCondition {
+  id            String   @id @default(cuid())
+  proposalId    String
+  amountCents   Int
+  paymentTerms  String
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  proposal    Proposal                     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  attachments ProposalConditionAttachment[]
+
+  @@index([proposalId])
+}
+
+model ProposalConditionAttachment {
+  id          String   @id @default(cuid())
+  conditionId String
+  fileName    String
+  storagePath String
+  contentType String?
+  sizeBytes   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  condition ProposalCondition @relation(fields: [conditionId], references: [id], onDelete: Cascade)
+
+  @@index([conditionId])
 }
 
 model ServiceItem {
@@ -203,26 +376,34 @@ model Condominium {
 }
 
 model Quotation {
-  id              String           @id @default(cuid())
-  publicId        String           @unique
-  organizationId  String
-  condominiumId   String
-  categoryId      String
-  serviceItemId   String
-  urgency         QuotationUrgency @default(media)
-  description     String
-  minProposals    Int              @default(3)
-  maxProposals    Int              @default(10)
-  status          QuotationStatus  @default(aberta)
-  createdByUserId String
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id                    String           @id @default(cuid())
+  publicId              String           @unique
+  organizationId        String
+  condominiumId         String
+  categoryId            String
+  serviceItemId         String
+  urgency               QuotationUrgency @default(media)
+  description           String
+  minProposals          Int              @default(3)
+  maxProposals          Int              @default(10)
+  proposalsCount        Int              @default(0)
+  invitesPaused         Boolean          @default(false)
+  status                QuotationStatus  @default(aberta)
+  approvedProposalId    String?
+  approvedConditionId   String?
+  otherCompanyName      String?
+  otherFinalAmountCents Int?
+  createdByUserId       String
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
 
   organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   condominium  Condominium            @relation(fields: [condominiumId], references: [id])
   category     ServiceCategory        @relation(fields: [categoryId], references: [id])
   serviceItem  ServiceItem            @relation(fields: [serviceItemId], references: [id])
   attachments  QuotationAttachment[]
+  invites      QuotationInvite[]
+  proposals    Proposal[]
 
   @@index([organizationId, status])
   @@index([organizationId, createdAt])

@@ -14,6 +14,10 @@
     "db:setup": "prisma db push && tsx prisma/seed.ts",
     "smoke:dia-01": "tsx scripts/smoke-dia-01.ts",
     "smoke:dia-02": "tsx scripts/smoke-dia-02.ts",
+    "smoke:dia-03": "tsx scripts/smoke-dia-03.ts",
+    "smoke:dia-04": "tsx scripts/smoke-dia-04.ts",
+    "seed:firebase-auth": "tsx scripts/seed-firebase-auth.ts",
+    "jobs:compliance-expire": "tsx scripts/jobs-compliance-expire.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

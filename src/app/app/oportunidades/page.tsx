@@ -1,13 +1,343 @@
-import { PlaceholderPage } from "@/components/app/PlaceholderPage";
+import Link from "next/link";
+import { OrganizationType } from "@prisma/client";
 import { requireAuthorizedSession } from "@/lib/auth/guards";
+import { prisma } from "@/lib/prisma";
+import { DeclineInviteForm } from "@/features/opportunities/components/DeclineInviteForm";
+import { ProposalForm } from "@/features/opportunities/components/ProposalForm";
+import { SupplierNegotiationPanel } from "@/features/negotiation/components/SupplierNegotiationPanel";
+import {
+  getSupplierFranchiseBalance,
+  assertSupplierCanAccessCategory,
+} from "@/features/supplier/franchise";
+import { markOverdueCompliance } from "@/features/compliance/expire";
+import { Button } from "@/components/ui/Button";
+import { acceptInviteAction } from "@/features/opportunities/actions";
 
-export default async function Page() {
-  await requireAuthorizedSession({ href: "/app/oportunidades" });
+type PageProps = {
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    categoryId?: string;
+    view?: string;
+    inviteId?: string;
+  }>;
+};
+
+type KanbanColumn =
+  | "Pendentes"
+  | "Em Andamento"
+  | "Enviadas"
+  | "Em Negociação"
+  | "Aprovadas"
+  | "Recusadas";
+
+function kanbanColumn(invite: {
+  status: string;
+  proposal: { status: string } | null;
+}): KanbanColumn {
+  if (invite.status === "declinado") return "Recusadas";
+  if (invite.status === "pendente") return "Pendentes";
+  if (!invite.proposal) return "Em Andamento";
+  if (invite.proposal.status === "enviada") return "Enviadas";
+  if (invite.proposal.status === "em_negociacao") return "Em Negociação";
+  if (invite.proposal.status === "aprovada") return "Aprovadas";
+  if (invite.proposal.status === "recusada") return "Recusadas";
+  return "Em Andamento";
+}
+
+export default async function OportunidadesPage({ searchParams }: PageProps) {
+  const session = await requireAuthorizedSession({
+    types: [OrganizationType.fornecedor],
+    href: "/app/oportunidades",
+  });
+
+  const params = await searchParams;
+  const query = params.q?.trim();
+  const statusFilter = params.status?.trim();
+  const categoryId = params.categoryId?.trim();
+  const view = params.view === "lista" ? "lista" : "kanban";
+  const focusInviteId = params.inviteId?.trim();
+
+  await markOverdueCompliance(session.organizationId);
+
+  const [franchise, overdueDocs, categories, invites] = await Promise.all([
+    getSupplierFranchiseBalance(session.organizationId),
+    prisma.complianceDocument.count({
+      where: { organizationId: session.organizationId, status: "em_atraso" },
+    }),
+    prisma.serviceCategory.findMany({
+      where: { isActive: true, deletedAt: null },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.quotationInvite.findMany({
+      where: {
+        supplierOrgId: session.organizationId,
+        ...(statusFilter ? { status: statusFilter as "pendente" | "aceito" | "declinado" | "expirado" } : {}),
+        ...(categoryId ? { quotation: { categoryId } } : {}),
+        ...(query
+          ? {
+              OR: [
+                { quotation: { publicId: { contains: query } } },
+                { quotation: { description: { contains: query } } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        quotation: {
+          include: {
+            category: true,
+            serviceItem: true,
+            condominium: true,
+            attachments: true,
+          },
+        },
+        proposal: {
+          include: {
+            conditions: { include: { attachments: true }, orderBy: { sortOrder: "asc" } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  const columns: KanbanColumn[] = [
+    "Pendentes",
+    "Em Andamento",
+    "Enviadas",
+    "Em Negociação",
+    "Aprovadas",
+    "Recusadas",
+  ];
+
+  const grouped = Object.fromEntries(columns.map((col) => [col, [] as typeof invites])) as Record<
+    KanbanColumn,
+    typeof invites
+  >;
+  for (const invite of invites) {
+    grouped[kanbanColumn(invite)].push(invite);
+  }
+
+  const focusInvite = focusInviteId
+    ? invites.find((invite) => invite.id === focusInviteId)
+    : null;
+
+  let categoryBlocked = false;
+  if (focusInvite) {
+    try {
+      await assertSupplierCanAccessCategory(
+        session.organizationId,
+        focusInvite.quotation.categoryId,
+      );
+    } catch {
+      categoryBlocked = true;
+    }
+  }
+
+  const blockMessage = !franchise.canSubmitProposal
+    ? "Limite mensal do plano Free esgotado (1 cotação/mês). Faça upgrade."
+    : overdueDocs > 0
+      ? "Há documentos em atraso. Regularize o compliance antes de enviar proposta."
+      : categoryBlocked
+        ? "Categoria fora do seu pacote. Ajuste em Meu Plano ou faça upgrade."
+        : undefined;
+
+  const canSubmit =
+    franchise.canSubmitProposal && overdueDocs === 0 && !categoryBlocked;
 
   return (
-    <PlaceholderPage
-      title="Oportunidades"
-      description="Painel Kanban e envio de propostas do fornecedor no Dia 3."
-    />
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-[#9333EA]">
+            Oportunidades
+          </p>
+          <h1 className="mt-1 text-3xl font-bold text-neutral-900">Painel do fornecedor</h1>
+          <p className="mt-2 text-neutral-600">
+            Saldo do mês:{" "}
+            {franchise.isUnlimited ? "∞" : `${franchise.remaining ?? 0} restante(s)`}
+            {overdueDocs > 0 ? ` · ${overdueDocs} doc(s) em atraso` : ""}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Link href="/app/oportunidades?view=kanban">
+            <Button variant={view === "kanban" ? "primary" : "secondary"} size="sm">
+              Kanban
+            </Button>
+          </Link>
+          <Link href="/app/oportunidades?view=lista">
+            <Button variant={view === "lista" ? "primary" : "secondary"} size="sm">
+              Lista
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      <form className="grid gap-2 md:grid-cols-4">
+        <input type="hidden" name="view" value={view} />
+        <input
+          name="q"
+          defaultValue={query}
+          placeholder="Buscar ID ou descrição"
+          className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+        />
+        <select
+          name="status"
+          defaultValue={statusFilter ?? ""}
+          className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+        >
+          <option value="">Todos os status</option>
+          <option value="pendente">Pendente</option>
+          <option value="aceito">Aceito</option>
+          <option value="declinado">Declinado</option>
+        </select>
+        <select
+          name="categoryId"
+          defaultValue={categoryId ?? ""}
+          className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+        >
+          <option value="">Todas as categorias</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+        <button type="submit" className="h-11 rounded-xl bg-black/[0.04] px-4 text-sm font-semibold">
+          Filtrar
+        </button>
+      </form>
+
+      {view === "kanban" ? (
+        <div className="grid gap-3 overflow-x-auto xl:grid-cols-6">
+          {columns.map((column) => (
+            <div key={column} className="min-w-[220px] rounded-2xl border border-black/5 bg-black/[0.02] p-3">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                {column} ({grouped[column].length})
+              </p>
+              <div className="space-y-2">
+                {grouped[column].map((invite) => (
+                  <Link
+                    key={invite.id}
+                    href={`/app/oportunidades?view=lista&inviteId=${invite.id}`}
+                    className="block rounded-xl border border-black/5 bg-white p-3 text-sm hover:border-[#9333EA]/30"
+                  >
+                    <p className="font-semibold text-neutral-900">{invite.quotation.publicId}</p>
+                    <p className="mt-1 text-xs text-neutral-500">{invite.quotation.category.name}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-neutral-600">
+                      {invite.quotation.description}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {invites.map((invite) => {
+            const expanded = focusInviteId === invite.id;
+            return (
+              <div key={invite.id} className="rounded-2xl border border-black/5 bg-white/80 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-neutral-900">
+                      {invite.quotation.publicId} · {invite.quotation.category.name}
+                    </p>
+                    <p className="mt-1 text-sm text-neutral-600">
+                      {invite.quotation.serviceItem.name} · Urgência {invite.quotation.urgency}
+                    </p>
+                    <p className="mt-1 text-xs text-neutral-500">
+                      Status convite: {invite.status}
+                      {invite.proposal ? ` · Proposta: ${invite.proposal.status}` : ""}
+                    </p>
+                  </div>
+                  <Link
+                    href={
+                      expanded
+                        ? "/app/oportunidades?view=lista"
+                        : `/app/oportunidades?view=lista&inviteId=${invite.id}`
+                    }
+                    className="text-sm font-semibold text-[#9333EA] hover:underline"
+                  >
+                    {expanded ? "Recolher" : "Detalhes"}
+                  </Link>
+                </div>
+
+                {expanded ? (
+                  <div className="mt-4 space-y-4 border-t border-black/5 pt-4">
+                    <p className="text-sm text-neutral-700">{invite.quotation.description}</p>
+                    <p className="text-xs text-neutral-500">
+                      Condomínio: {invite.quotation.condominium.name} · Anexos:{" "}
+                      {invite.quotation.attachments.length}
+                    </p>
+
+                    {invite.status === "pendente" ? (
+                      <div className="flex flex-wrap gap-2">
+                        <form
+                          action={async (formData) => {
+                            "use server";
+                            await acceptInviteAction(formData);
+                          }}
+                        >
+                          <input type="hidden" name="inviteId" value={invite.id} />
+                          <Button type="submit" size="sm">
+                            Aceitar
+                          </Button>
+                        </form>
+                        <DeclineInviteForm inviteId={invite.id} />
+                      </div>
+                    ) : null}
+
+                    {invite.status === "declinado" ? (
+                      <p className="text-sm text-neutral-500">
+                        Declinada
+                        {invite.declineReason ? `: ${invite.declineReason}` : "."}
+                      </p>
+                    ) : null}
+
+                    {invite.proposal ? (
+                      <div className="space-y-3">
+                        <div className="rounded-xl bg-black/[0.03] p-4 text-sm">
+                          <p className="font-semibold">Proposta enviada ({invite.proposal.status})</p>
+                          <ul className="mt-2 space-y-1">
+                            {invite.proposal.conditions.map((condition, index) => (
+                              <li key={condition.id}>
+                                #{index + 1}: R${" "}
+                                {(condition.amountCents / 100).toFixed(2).replace(".", ",")} —{" "}
+                                {condition.paymentTerms}
+                                {condition.attachments.length > 0
+                                  ? ` · ${condition.attachments[0].fileName}`
+                                  : ""}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        {invite.proposal.status === "em_negociacao" ? (
+                          <SupplierNegotiationPanel proposalId={invite.proposal.id} />
+                        ) : null}
+                      </div>
+                    ) : invite.status === "aceito" || invite.status === "pendente" ? (
+                      <ProposalForm
+                        inviteId={invite.id}
+                        canSubmit={canSubmit}
+                        blockMessage={blockMessage}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+          {invites.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-black/10 px-4 py-10 text-center text-neutral-500">
+              Nenhuma oportunidade encontrada.
+            </p>
+          ) : null}
+        </div>
+      )}
+    </div>
   );
 }

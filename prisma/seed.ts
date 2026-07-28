@@ -175,7 +175,7 @@ async function main() {
     });
   }
 
-  const passwordHash = await bcrypt.hash("Demo@123456", 12);
+  const passwordHash = await bcrypt.hash("123456", 12);
 
   const platformOrg = await prisma.organization.upsert({
     where: { id: "org_platform_master" },
@@ -286,10 +286,215 @@ async function main() {
   const catalog = await seedOfficialCatalog();
   console.log(`Catálogo seed: ${catalog.categoryCount} categorias / ${catalog.itemCount} serviços`);
 
-  console.log("Seed concluído. Senha das contas demo: Demo@123456");
+  const segurosCategory = await prisma.serviceCategory.findUnique({
+    where: { slug: "seguros" },
+  });
+  if (segurosCategory) {
+    await prisma.organizationCategory.upsert({
+      where: {
+        organizationId_categoryId: {
+          organizationId: fornecedorOrg.id,
+          categoryId: segurosCategory.id,
+        },
+      },
+      update: { isIncluded: true },
+      create: {
+        organizationId: fornecedorOrg.id,
+        categoryId: segurosCategory.id,
+        isIncluded: true,
+      },
+    });
+  }
+
+  // Fornecedores extras para o motor de distribuição (Dia 4)
+  const fornecedorPro = await prisma.organization.upsert({
+    where: { id: "org_demo_fornecedor_pro" },
+    update: { name: "Seguros Pro Compliant LTDA", type: OrganizationType.fornecedor },
+    create: {
+      id: "org_demo_fornecedor_pro",
+      name: "Seguros Pro Compliant LTDA",
+      type: OrganizationType.fornecedor,
+      document: "12345678000199",
+    },
+  });
+  const fornecedorPending = await prisma.organization.upsert({
+    where: { id: "org_demo_fornecedor_pending" },
+    update: { name: "Seguros Pending Docs LTDA", type: OrganizationType.fornecedor },
+    create: {
+      id: "org_demo_fornecedor_pending",
+      name: "Seguros Pending Docs LTDA",
+      type: OrganizationType.fornecedor,
+      document: "98765432000111",
+    },
+  });
+
+  await ensureActiveSubscription(fornecedorPro.id, "fornecedor-pro");
+  await ensureActiveSubscription(fornecedorPending.id, "fornecedor-pro");
+
+  if (segurosCategory) {
+    for (const orgId of [fornecedorPro.id, fornecedorPending.id]) {
+      await prisma.organizationCategory.upsert({
+        where: {
+          organizationId_categoryId: { organizationId: orgId, categoryId: segurosCategory.id },
+        },
+        update: { isIncluded: true },
+        create: { organizationId: orgId, categoryId: segurosCategory.id, isIncluded: true },
+      });
+    }
+
+    await prisma.complianceDocument.deleteMany({
+      where: { organizationId: { in: [fornecedorPro.id, fornecedorPending.id] } },
+    });
+    await prisma.complianceDocument.create({
+      data: {
+        organizationId: fornecedorPro.id,
+        documentType: "Certidão Negativa Federal",
+        fileName: "cnd-pro.pdf",
+        storagePath: "local://uploads/cnd-pro.pdf",
+        validUntil: new Date(Date.now() + 180 * 86400000),
+        status: "aprovado",
+      },
+    });
+    await prisma.complianceDocument.create({
+      data: {
+        organizationId: fornecedorPending.id,
+        documentType: "Certidão Negativa Federal",
+        fileName: "cnd-pending.pdf",
+        storagePath: "local://uploads/cnd-pending.pdf",
+        validUntil: new Date(Date.now() + 180 * 86400000),
+        status: "em_analise",
+      },
+    });
+
+    await prisma.favoriteSupplier.upsert({
+      where: {
+        organizationId_supplierOrgId: {
+          organizationId: admOrg.id,
+          supplierOrgId: fornecedorPro.id,
+        },
+      },
+      update: { categoryId: segurosCategory.id },
+      create: {
+        organizationId: admOrg.id,
+        supplierOrgId: fornecedorPro.id,
+        categoryId: segurosCategory.id,
+      },
+    });
+  }
+
+  const condo = await prisma.condominium.upsert({
+    where: { id: "condo_demo_sol" },
+    update: {
+      name: "Residencial Sol Demo",
+      address: "Rua das Palmeiras, 100 — São Paulo/SP",
+      organizationId: sindicoOrg.id,
+      archivedAt: null,
+    },
+    create: {
+      id: "condo_demo_sol",
+      organizationId: sindicoOrg.id,
+      name: "Residencial Sol Demo",
+      address: "Rua das Palmeiras, 100 — São Paulo/SP",
+      document: "11222333000181",
+      contactName: "Síndico Demo",
+      contactEmail: "sindico@demo.cotacondo.com.br",
+    },
+  });
+
+  const serviceItem = segurosCategory
+    ? await prisma.serviceItem.findFirst({
+        where: { categoryId: segurosCategory.id, deletedAt: null, isActive: true },
+        orderBy: { sortOrder: "asc" },
+      })
+    : null;
+
+  if (segurosCategory && serviceItem) {
+    const quotation = await prisma.quotation.upsert({
+      where: { publicId: "COT-DEMO-000001" },
+      update: {
+        description: "Cotação demo para oportunidades do fornecedor (Dia 3).",
+        status: "aberta",
+      },
+      create: {
+        publicId: "COT-DEMO-000001",
+        organizationId: sindicoOrg.id,
+        condominiumId: condo.id,
+        categoryId: segurosCategory.id,
+        serviceItemId: serviceItem.id,
+        urgency: "media",
+        description: "Cotação demo para oportunidades do fornecedor (Dia 3).",
+        minProposals: 3,
+        maxProposals: 10,
+        status: "aberta",
+        createdByUserId: (
+          await prisma.user.findUniqueOrThrow({
+            where: { email: "sindico@demo.cotacondo.com.br" },
+          })
+        ).id,
+      },
+    });
+
+    await prisma.quotationInvite.upsert({
+      where: {
+        quotationId_supplierOrgId: {
+          quotationId: quotation.id,
+          supplierOrgId: fornecedorOrg.id,
+        },
+      },
+      update: { status: "pendente", declineReason: null, declinedAt: null },
+      create: {
+        quotationId: quotation.id,
+        supplierOrgId: fornecedorOrg.id,
+        status: "pendente",
+      },
+    });
+
+    const quotation2 = await prisma.quotation.upsert({
+      where: { publicId: "COT-DEMO-000002" },
+      update: {
+        description: "Segunda oportunidade demo (Kanban).",
+        status: "aberta",
+      },
+      create: {
+        publicId: "COT-DEMO-000002",
+        organizationId: sindicoOrg.id,
+        condominiumId: condo.id,
+        categoryId: segurosCategory.id,
+        serviceItemId: serviceItem.id,
+        urgency: "alta",
+        description: "Segunda oportunidade demo (Kanban).",
+        minProposals: 2,
+        maxProposals: 8,
+        status: "aberta",
+        createdByUserId: (
+          await prisma.user.findUniqueOrThrow({
+            where: { email: "sindico@demo.cotacondo.com.br" },
+          })
+        ).id,
+      },
+    });
+
+    await prisma.quotationInvite.upsert({
+      where: {
+        quotationId_supplierOrgId: {
+          quotationId: quotation2.id,
+          supplierOrgId: fornecedorOrg.id,
+        },
+      },
+      update: { status: "pendente", declineReason: null, declinedAt: null },
+      create: {
+        quotationId: quotation2.id,
+        supplierOrgId: fornecedorOrg.id,
+        status: "pendente",
+      },
+    });
+  }
+
+  console.log("Seed concluído. Senha das contas demo: 123456");
   for (const demo of demos) {
     console.log(` - ${demo.email}`);
   }
+  console.log("Sincronize o Firebase Auth com: npm run seed:firebase-auth");
 }
 
 main()

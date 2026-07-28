@@ -2,13 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAuthorizedSession } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
+import { QuotationComparePanel } from "@/features/negotiation/components/QuotationComparePanel";
 
 type PageProps = { params: Promise<{ id: string }> };
 
 const TIMELINE = [
   { key: "aberta", label: "Aberta" },
   { key: "em_negociacao", label: "Em negociação" },
-  { key: "aprovada", label: "Aprovada / Encerrada" },
+  { key: "aprovada", label: "Aprovada / Outros / Encerrada" },
 ] as const;
 
 export default async function CotacaoDetalhePage({ params }: PageProps) {
@@ -22,12 +23,57 @@ export default async function CotacaoDetalhePage({ params }: PageProps) {
       category: true,
       serviceItem: true,
       attachments: true,
+      invites: {
+        include: { supplier: { select: { name: true } } },
+        orderBy: [{ priorityTier: "asc" }, { createdAt: "asc" }],
+      },
+      proposals: {
+        include: {
+          conditions: {
+            include: { attachments: true },
+            orderBy: { sortOrder: "asc" },
+          },
+          organization: { select: { name: true } },
+          messages: {
+            orderBy: { createdAt: "asc" },
+            include: { organization: { select: { name: true } } },
+          },
+        },
+      },
     },
   });
   if (!quotation) notFound();
 
+  const rows = quotation.proposals.flatMap((proposal) =>
+    proposal.conditions.map((condition) => ({
+      proposalId: proposal.id,
+      conditionId: condition.id,
+      supplierName: proposal.organization.name,
+      status: proposal.status,
+      amountCents: condition.amountCents,
+      paymentTerms: condition.paymentTerms,
+      attachmentName: condition.attachments[0]?.fileName ?? null,
+      createdAt: proposal.createdAt.toISOString(),
+    })),
+  );
+
+  const messages = quotation.proposals.flatMap((proposal) =>
+    proposal.messages.map((message) => ({
+      id: message.id,
+      proposalId: proposal.id,
+      body: message.body,
+      authorLabel: message.organization.name,
+      createdAt: message.createdAt.toISOString(),
+    })),
+  );
+
+  const statusLabel =
+    quotation.status === "finalizada_outros"
+      ? "Finalizada — Outros"
+      : quotation.status.replace("_", " ");
+
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <Link href="/app/cotacoes" className="text-sm text-[#9333EA] hover:underline">
           ← Voltar
@@ -39,20 +85,24 @@ export default async function CotacaoDetalhePage({ params }: PageProps) {
         <p className="mt-2 text-neutral-600">{quotation.condominium.name}</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <div className="rounded-2xl border border-black/5 bg-white/80 p-4">
           <p className="text-xs text-neutral-500">Status</p>
-          <p className="mt-1 font-semibold capitalize">{quotation.status.replace("_", " ")}</p>
+          <p className="mt-1 font-semibold capitalize">{statusLabel}</p>
         </div>
         <div className="rounded-2xl border border-black/5 bg-white/80 p-4">
           <p className="text-xs text-neutral-500">Urgência</p>
           <p className="mt-1 font-semibold capitalize">{quotation.urgency}</p>
         </div>
         <div className="rounded-2xl border border-black/5 bg-white/80 p-4">
-          <p className="text-xs text-neutral-500">Metas de propostas</p>
+          <p className="text-xs text-neutral-500">Metas</p>
           <p className="mt-1 font-semibold">
             min {quotation.minProposals} · máx {quotation.maxProposals}
           </p>
+        </div>
+        <div className="rounded-2xl border border-black/5 bg-white/80 p-4">
+          <p className="text-xs text-neutral-500">Propostas</p>
+          <p className="mt-1 font-semibold">{quotation.proposalsCount}</p>
         </div>
       </div>
 
@@ -86,6 +136,26 @@ export default async function CotacaoDetalhePage({ params }: PageProps) {
         )}
       </div>
 
+      <QuotationComparePanel
+        quotationId={quotation.id}
+        quotationStatus={quotation.status}
+        invitesPaused={quotation.invitesPaused}
+        minProposals={quotation.minProposals}
+        maxProposals={quotation.maxProposals}
+        proposalsCount={quotation.proposalsCount}
+        rows={rows}
+        messages={messages}
+        invites={quotation.invites.map((invite) => ({
+          id: invite.id,
+          supplierName: invite.supplier.name,
+          status: invite.status,
+          tier: invite.priorityTier,
+          reason: invite.selectionReason,
+        }))}
+        otherCompanyName={quotation.otherCompanyName}
+        otherFinalAmountCents={quotation.otherFinalAmountCents}
+      />
+
       <div className="rounded-2xl border border-black/5 bg-white/80 p-5">
         <h2 className="text-lg font-semibold">Timeline de status</h2>
         <ol className="mt-4 space-y-3">
@@ -93,7 +163,9 @@ export default async function CotacaoDetalhePage({ params }: PageProps) {
             const active =
               quotation.status === step.key ||
               (step.key === "aprovada" &&
-                ["aprovada", "recusada", "cancelada", "encerrada"].includes(quotation.status));
+                ["aprovada", "recusada", "cancelada", "encerrada", "finalizada_outros"].includes(
+                  quotation.status,
+                ));
             return (
               <li key={step.key} className="flex items-center gap-3 text-sm">
                 <span
