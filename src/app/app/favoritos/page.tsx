@@ -39,7 +39,7 @@ export default async function FavoritosPage() {
     );
   }
 
-  const [suppliers, favorites] = await Promise.all([
+  const [suppliers, favorites, categories] = await Promise.all([
     prisma.organization.findMany({
       where: { type: "fornecedor" },
       orderBy: { name: "asc" },
@@ -54,10 +54,16 @@ export default async function FavoritosPage() {
     }),
     prisma.favoriteSupplier.findMany({
       where: { organizationId: session.organizationId },
+      include: { category: true },
+    }),
+    prisma.serviceCategory.findMany({
+      where: { deletedAt: null, isActive: true },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true },
     }),
   ]);
 
-  const favoriteIds = new Set(favorites.map((item) => item.supplierOrgId));
+  const favoriteBySupplier = new Map(favorites.map((item) => [item.supplierOrgId, item]));
 
   return (
     <div className="space-y-6">
@@ -66,32 +72,57 @@ export default async function FavoritosPage() {
         <h1 className="mt-1 text-3xl font-bold text-neutral-900">Fornecedores favoritos</h1>
         <p className="mt-2 text-neutral-600">
           Favoritos entram na prioridade 1 do motor de distribuição (categoria + plano pago).
+          Opcionalmente vincule a uma categoria específica.
         </p>
       </div>
 
       <div className="space-y-3">
         {suppliers.map((supplier) => {
-          const isFavorite = favoriteIds.has(supplier.id);
+          const favorite = favoriteBySupplier.get(supplier.id);
+          const isFavorite = Boolean(favorite);
           return (
             <div
               key={supplier.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/5 bg-white/80 p-4"
+              className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-black/5 bg-white/80 p-4"
             >
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="font-semibold text-neutral-900">{supplier.name}</p>
                 <p className="mt-1 text-xs text-neutral-500">
                   {supplier.subscriptions[0]?.plan.name ?? "Sem plano"} ·{" "}
                   {supplier.categories.map((link) => link.category.name).join(", ") ||
                     "Sem categorias"}
                 </p>
+                {favorite?.category ? (
+                  <p className="mt-1 text-xs font-medium text-[#9333EA]">
+                    Favorito em: {favorite.category.name}
+                  </p>
+                ) : null}
               </div>
               <form
+                className="flex flex-wrap items-end gap-2"
                 action={async (formData) => {
                   "use server";
                   await toggleFavoriteSupplierAction(formData);
                 }}
               >
                 <input type="hidden" name="supplierOrgId" value={supplier.id} />
+                {!isFavorite ? (
+                  <label className="block text-xs text-neutral-600">
+                    Categoria (opcional)
+                    <select
+                      name="categoryId"
+                      className="mt-1 h-9 rounded-xl border border-black/10 bg-white px-2 text-sm"
+                      defaultValue=""
+                    >
+                      <option value="">Todas as categorias do pacote</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
                 <Button type="submit" size="sm" variant={isFavorite ? "secondary" : "primary"}>
                   {isFavorite ? "Remover favorito" : "Favoritar"}
                 </Button>

@@ -3,40 +3,271 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CotaCondo</title>
-    <style>
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        font-family: system-ui, sans-serif;
-        background: linear-gradient(135deg, #fdf2f8, #eff6ff);
-        color: #171717;
-      }
-      main {
-        max-width: 28rem;
-        padding: 2rem;
-        text-align: center;
-      }
-      h1 {
-        margin: 0 0 0.5rem;
-        font-size: 1.75rem;
-      }
-      p {
-        margin: 0;
-        color: #525252;
-        line-height: 1.5;
-      }
-    </style>
+    <title>CotaCondo — Cotações de condomínio sem planilha</title>
+    <meta
+      name="description"
+      content="Abra a cotação, receba propostas, compare, negocie e aprove — 100% na plataforma."
+    />
+    <link rel="icon" href="/brand/logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/site.css" />
   </head>
   <body>
+    <header class="site-header" data-header>
+      <div class="site-header__bar">
+        <a href="/"><img class="logo" src="/brand/logo.png" alt="CotaCondo" /></a>
+        <nav class="nav" aria-label="Principal">
+          <a href="/fornecedores">Para Fornecedores</a>
+          <a href="/#cotacao">Fazer cotação</a>
+          <a data-blog-href href="https://blog.cotacondo.com.br" target="_blank" rel="noreferrer"
+            >Blog</a
+          >
+          <a data-app-href="/acesse">Acesse</a>
+        </nav>
+        <a class="btn btn-ghost header-cta" data-app-href="/cadastro?tipo=sindico">Começar</a>
+        <button
+          class="menu-toggle"
+          type="button"
+          data-menu-toggle
+          aria-expanded="false"
+          aria-label="Abrir menu"
+        >
+          ☰
+        </button>
+      </div>
+    </header>
+
+    <div class="menu-drawer" data-menu-drawer>
+      <nav>
+        <a href="/fornecedores">Para Fornecedores</a>
+        <a href="/#cotacao">Fazer cotação</a>
+        <a data-blog-href href="https://blog.cotacondo.com.br" target="_blank" rel="noreferrer"
+          >Blog</a
+        >
+        <a data-app-href="/acesse">Acesse</a>
+        <a data-app-href="/cadastro?tipo=sindico">Começar</a>
+      </nav>
+    </div>
+
     <main>
-      <h1>CotaCondo</h1>
-      <p>
-        Landing estática no Firebase Hosting (plano Spark). O aplicativo Next.js
-        roda na Vercel — consulte o README do repositório.
-      </p>
+      <section class="hero">
+        <div class="hero__glow hero__glow--a" aria-hidden="true"></div>
+        <div class="hero__glow hero__glow--b" aria-hidden="true"></div>
+        <div class="container hero__grid">
+          <div>
+            <div class="eyebrow">Cotações, negociação e contratação 100% na plataforma</div>
+            <h1>
+              Cotações de condomínio<br />
+              sem planilha. Sem WhatsApp solto.
+            </h1>
+            <p class="lead">
+              Abra a cotação, receba propostas de fornecedores elegíveis, compare, negocie e aprove —
+              com franquia por plano, compliance e rastreio completo.
+            </p>
+            <div id="cotacao" class="hero__actions">
+              <a class="btn btn-primary" data-app-href="/cadastro?tipo=sindico">
+                Fazer cotação
+                <span class="icon-pill" aria-hidden="true">→</span>
+              </a>
+              <a class="link-accent" href="/fornecedores">Sou fornecedor</a>
+            </div>
+          </div>
+          <div class="hero__visual">
+            <img class="mascot" src="/brand/mascote.png" alt="Mascote CotaCondo" />
+            <div class="float-badge badge-a">
+              <span class="float-badge__icon" style="background: rgba(225, 29, 138, 0.1)">📋</span>
+              <p>
+                <strong>Abrir cotação</strong>
+                <span>com meta de propostas</span>
+              </p>
+            </div>
+            <div class="float-badge badge-b">
+              <span class="float-badge__icon" style="background: rgba(20, 184, 166, 0.1)">▦</span>
+              <p>
+                <strong>Comparar propostas</strong>
+                <span>quadro side-by-side</span>
+              </p>
+            </div>
+            <div class="float-badge badge-c">
+              <span class="float-badge__icon" style="background: rgba(147, 51, 234, 0.1)">✓</span>
+              <p>
+                <strong>Aprovar ou negociar</strong>
+                <span>100% na plataforma</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="banners">
+        <div class="container">
+          <div class="banners__frame">
+            <div class="banners__track" data-banner-track>
+              <a
+                class="banners__slide"
+                style="background-image: url('/brand/banners/01-cotacoes.svg')"
+                data-app-href="/cadastro?tipo=sindico"
+              >
+                <h3>Cotações digitais para condomínios</h3>
+              </a>
+              <a
+                class="banners__slide"
+                style="background-image: url('/brand/banners/02-fornecedores.svg')"
+                href="/fornecedores"
+              >
+                <h3>Fornecedores com compliance</h3>
+              </a>
+              <a
+                class="banners__slide"
+                style="background-image: url('/brand/banners/03-compliance.svg')"
+                data-app-href="/checkout?plan=adm-premium"
+              >
+                <h3>Administradora Premium</h3>
+              </a>
+            </div>
+            <div class="banners__nav">
+              <button type="button" data-banner-prev aria-label="Anterior">‹</button>
+              <button type="button" data-banner-next aria-label="Próximo">›</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="planos" class="section">
+        <div class="container">
+          <div class="section__head">
+            <p class="eyebrow-label">Planos</p>
+            <h2>Escolha o plano do solicitante</h2>
+            <p>
+              Free para começar. Pago e Premium para escala, whitelabel e operação de
+              administradora.
+            </p>
+          </div>
+          <div class="plans">
+            <article class="plan">
+              <h3>Síndico Free</h3>
+              <p class="desc">Franquia mensal padrão para síndicos</p>
+              <p class="price">Grátis</p>
+              <p class="quota">Franquia: 15 cotações/mês</p>
+              <ul>
+                <li>15 cotações/mês</li>
+                <li>Comparativo na plataforma</li>
+                <li>Negociar e aprovar online</li>
+              </ul>
+              <a class="btn btn-secondary" data-app-href="/cadastro?tipo=sindico">Começar grátis</a>
+            </article>
+            <article class="plan">
+              <h3>Síndico Pago</h3>
+              <p class="desc">Mais cotações e whitelabel</p>
+              <p class="price">R$&nbsp;99<span> /mês</span></p>
+              <p class="quota">Franquia: 50 cotações/mês</p>
+              <ul>
+                <li>50 cotações/mês</li>
+                <li>Whitelabel no comparativo</li>
+                <li>Prioridade de suporte</li>
+              </ul>
+              <a class="btn btn-secondary" data-app-href="/checkout?plan=sindico-pago">Contratar</a>
+            </article>
+            <article class="plan is-recommended">
+              <span class="plan__badge">Recomendado</span>
+              <h3>Administradora Premium</h3>
+              <p class="desc">Parcerias, favoritos, comissões e SLA</p>
+              <p class="price">R$&nbsp;299<span> /mês</span></p>
+              <p class="quota">Franquia: Ilimitada</p>
+              <ul>
+                <li>Cotações ilimitadas</li>
+                <li>Favoritos + parcerias</li>
+                <li>Comissionamento e SLA</li>
+              </ul>
+              <a class="btn btn-recommended" data-app-href="/checkout?plan=adm-premium"
+                >Contratar</a
+              >
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="especialista" class="cta">
+        <div class="container">
+          <div class="cta__box">
+            <div>
+              <p class="eyebrow-label">Atendimento</p>
+              <h2>Falar com um especialista</h2>
+              <p>
+                Tire dúvidas sobre planos, migração de síndico para administradora ou onboarding de
+                fornecedores. Atendimento humano, sem bots genéricos.
+              </p>
+            </div>
+            <a
+              class="btn btn-dark"
+              data-whatsapp-href
+              href="https://wa.me/5500000000000"
+              target="_blank"
+              rel="noreferrer"
+              >💬 Abrir WhatsApp</a
+            >
+          </div>
+        </div>
+      </section>
     </main>
+
+    <footer class="site-footer">
+      <div class="container site-footer__grid">
+        <div>
+          <img class="logo" src="/brand/logo.png" alt="CotaCondo" />
+          <p class="blurb">
+            Plataforma de cotações para condomínios — solicitantes e fornecedores em um fluxo 100%
+            digital.
+          </p>
+        </div>
+        <div class="footer-cols">
+          <div>
+            <strong>Produto</strong>
+            <ul>
+              <li><a href="/#cotacao">Fazer cotação</a></li>
+              <li><a href="/#planos">Planos</a></li>
+              <li><a href="/fornecedores">Para Fornecedores</a></li>
+            </ul>
+          </div>
+          <div>
+            <strong>Acesso</strong>
+            <ul>
+              <li><a data-app-href="/acesse">Entrar</a></li>
+              <li><a data-app-href="/cadastro">Criar conta</a></li>
+              <li>
+                <a data-blog-href href="https://blog.cotacondo.com.br" target="_blank" rel="noreferrer"
+                  >Blog</a
+                >
+              </li>
+            </ul>
+          </div>
+          <div>
+            <strong>Contato</strong>
+            <ul>
+              <li>
+                <a
+                  data-whatsapp-href
+                  href="https://wa.me/5500000000000"
+                  target="_blank"
+                  rel="noreferrer"
+                  >WhatsApp</a
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="container">
+        <p class="copyright">© <span data-year>2026</span> CotaCondo. Todos os direitos reservados.</p>
+      </div>
+    </footer>
+
+    <script src="/js/config.js"></script>
+    <script src="/js/site.js"></script>
   </body>
 </html>

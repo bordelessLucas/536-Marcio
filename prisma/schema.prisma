@@ -42,6 +42,8 @@ model User {
   name                 String
   emailVerifiedAt      DateTime?
   privacyAcceptedAt    DateTime?
+  referralCode         String?   @unique
+  referredByUserId     String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -50,6 +52,10 @@ model User {
   passwordResetTokens  PasswordResetToken[]
   auditLogs            AuditLog[]
   consentRecords       ConsentRecord[]
+  referredBy           User?     @relation("UserReferrals", fields: [referredByUserId], references: [id], onDelete: SetNull)
+  referrals            User[]    @relation("UserReferrals")
+  referralRewards      ReferralReward[] @relation("ReferralReferrer")
+  referredRewards      ReferralReward[] @relation("ReferralReferred")
 }
 
 enum QuotationStatus {
@@ -91,6 +97,16 @@ model Organization {
   favoriteSuppliers    FavoriteSupplier[]      @relation("FavoriteOwner")
   favoritedBy          FavoriteSupplier[]      @relation("FavoriteSupplierOrg")
   negotiationMessages  NegotiationMessage[]
+  paymentCheckouts     PaymentCheckout[]
+  subscriptionChanges  SubscriptionChange[]
+  migrations           OrganizationMigration[]
+  partnershipsAsAdm    Partnership[]           @relation("PartnershipAdm")
+  partnershipsAsSupplier Partnership[]         @relation("PartnershipSupplier")
+  commissionAgreements CommissionAgreement[]   @relation("CommissionAdm")
+  commissionAsSupplier CommissionAgreement[]   @relation("CommissionSupplier")
+  commissionEntries    CommissionEntry[]       @relation("CommissionEntryAdm")
+  commissionEntrySupplier CommissionEntry[]    @relation("CommissionEntrySupplier")
+  categoryAddonPurchases CategoryAddonPurchase[]
 }
 
 model OrganizationMember {
@@ -108,36 +124,52 @@ model OrganizationMember {
 }
 
 model Plan {
-  id           String       @id @default(cuid())
-  slug         String       @unique
-  name         String
-  audience     PlanAudience
-  isFree       Boolean      @default(false)
-  monthlyQuota Int?
-  priceCents   Int          @default(0)
-  featuresJson String       @default("{}")
-  isActive     Boolean      @default(true)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id              String       @id @default(cuid())
+  slug            String       @unique
+  name            String
+  description     String?
+  audience        PlanAudience
+  isFree          Boolean      @default(false)
+  monthlyQuota    Int?
+  priceCents      Int          @default(0)
+  billingInterval String       @default("monthly")
+  sortOrder       Int          @default(0)
+  featuresJson    String       @default("{}")
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
-  subscriptions Subscription[]
-  overrides     PlanOverride[]
+  subscriptions       Subscription[]
+  overrides           PlanOverride[]
+  checkouts           PaymentCheckout[]
+  changesFrom         SubscriptionChange[] @relation("ChangeFromPlan")
+  changesTo           SubscriptionChange[] @relation("ChangeToPlan")
+  migrations          OrganizationMigration[]
+  pendingSubscriptions Subscription[]     @relation("PendingPlan")
 }
 
 model Subscription {
-  id             String             @id @default(cuid())
-  organizationId String
-  planId         String
-  status         SubscriptionStatus @default(active)
-  startsAt       DateTime           @default(now())
-  endsAt         DateTime?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  id                    String             @id @default(cuid())
+  organizationId        String
+  planId                String
+  status                SubscriptionStatus @default(active)
+  startsAt              DateTime           @default(now())
+  endsAt                DateTime?
+  currentPeriodStart    DateTime           @default(now())
+  currentPeriodEnd      DateTime?
+  cancelAtPeriodEnd     Boolean            @default(false)
+  pendingPlanId         String?
+  externalCustomerId    String?
+  externalSubscriptionId String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   plan         Plan         @relation(fields: [planId], references: [id])
+  pendingPlan  Plan?        @relation("PendingPlan", fields: [pendingPlanId], references: [id])
 
   @@index([organizationId])
+  @@index([status])
 }
 
 model PlanOverride {
@@ -178,10 +210,14 @@ model OrganizationCategory {
   organizationId String
   categoryId     String
   isIncluded     Boolean  @default(true)
+  isAddon        Boolean  @default(false)
+  unitPriceCents Int?
+  checkoutId     String?
   createdAt      DateTime @default(now())
 
   organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   category     ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  checkout     PaymentCheckout? @relation(fields: [checkoutId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, categoryId])
   @@index([organizationId])
@@ -364,6 +400,8 @@ model Condominium {
   contactName    String?
   contactEmail   String?
   contactPhone   String?
+  towers         Int?
+  units          Int?
   archivedAt     DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -455,15 +493,26 @@ model DomainEvent {
   @@index([entityType, entityId])
 }
 
+enum BannerAudienceMode {
+  all
+  profiles
+  users
+}
+
 model LandingBanner {
-  id        String   @id @default(cuid())
-  title     String?
-  imageUrl  String
-  linkUrl   String?
-  sortOrder Int      @default(0)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String             @id @default(cuid())
+  title                String?
+  imageUrl             String
+  linkUrl              String?
+  sortOrder            Int                @default(0)
+  isActive             Boolean            @default(true)
+  showOnLanding        Boolean            @default(true)
+  showInApp            Boolean            @default(true)
+  audienceMode         BannerAudienceMode @default(all)
+  targetProfilesJson   String             @default("[]")
+  targetUserIdsJson    String             @default("[]")
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 }
 
 model MarketingSettings {
@@ -481,7 +530,213 @@ model PlatformSettings {
   freeQuotaFornecedor     Int      @default(1)
   reminderDaysJson        String   @default("[5,10]")
   partnershipLockEnabled  Boolean  @default(true)
+  categoryAddonPriceCents Int      @default(2900)
   updatedAt               DateTime @updatedAt
+}
+
+enum CheckoutKind {
+  plan
+  category_addon
+  migration
+}
+
+enum CheckoutStatus {
+  pending
+  paid
+  failed
+  canceled
+  expired
+}
+
+enum PartnershipStatus {
+  active
+  blocked
+  ended
+}
+
+enum MigrationStatus {
+  pending_payment
+  pending_review
+  approved
+  rejected
+  canceled
+}
+
+enum CommissionFeeType {
+  fixed
+  percent
+}
+
+enum CommissionEntryStatus {
+  expected
+  accrued
+  paid
+  canceled
+}
+
+model PaymentCheckout {
+  id               String         @id @default(cuid())
+  organizationId   String
+  userId           String?
+  kind             CheckoutKind
+  planId           String?
+  status           CheckoutStatus @default(pending)
+  provider         String         @default("sandbox")
+  amountCents      Int
+  quantity         Int            @default(1)
+  currency         String         @default("BRL")
+  externalId       String?        @unique
+  idempotencyKey   String         @unique
+  metadataJson     String         @default("{}")
+  paidAt           DateTime?
+  failedAt         DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan             Plan?          @relation(fields: [planId], references: [id])
+  orgCategories    OrganizationCategory[]
+  migrations       OrganizationMigration[]
+  addonPurchases   CategoryAddonPurchase[]
+
+  @@index([organizationId, status])
+  @@index([kind])
+}
+
+model PaymentWebhookEvent {
+  id          String    @id @default(cuid())
+  provider    String
+  eventId     String
+  eventType   String
+  payloadJson String
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([provider, eventId])
+  @@index([provider, eventType])
+}
+
+model SubscriptionChange {
+  id             String   @id @default(cuid())
+  organizationId String
+  fromPlanId     String?
+  toPlanId       String
+  changeType     String
+  prorationCents Int      @default(0)
+  effectiveAt    DateTime
+  checkoutId     String?
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  fromPlan     Plan?        @relation("ChangeFromPlan", fields: [fromPlanId], references: [id])
+  toPlan       Plan         @relation("ChangeToPlan", fields: [toPlanId], references: [id])
+
+  @@index([organizationId, createdAt])
+}
+
+model OrganizationMigration {
+  id             String           @id @default(cuid())
+  organizationId String
+  fromType       OrganizationType
+  toType         OrganizationType @default(administradora)
+  targetPlanId   String
+  status         MigrationStatus  @default(pending_payment)
+  checkoutId     String?
+  requestedByUserId String
+  reviewedByUserId  String?
+  reviewNotes    String?
+  completedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  targetPlan   Plan             @relation(fields: [targetPlanId], references: [id])
+  checkout     PaymentCheckout? @relation(fields: [checkoutId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([status])
+}
+
+model Partnership {
+  id                  String            @id @default(cuid())
+  administradoraOrgId String
+  supplierOrgId       String
+  status              PartnershipStatus @default(active)
+  lockedReason        String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  administradora Organization @relation("PartnershipAdm", fields: [administradoraOrgId], references: [id], onDelete: Cascade)
+  supplier       Organization @relation("PartnershipSupplier", fields: [supplierOrgId], references: [id], onDelete: Cascade)
+
+  @@unique([administradoraOrgId, supplierOrgId])
+  @@index([administradoraOrgId])
+  @@index([supplierOrgId])
+}
+
+model CommissionAgreement {
+  id                  String            @id @default(cuid())
+  administradoraOrgId String
+  supplierOrgId       String
+  feeType             CommissionFeeType
+  feeValue            Float
+  durationMonths      Int?
+  isRecurring         Boolean           @default(false)
+  startsAt            DateTime          @default(now())
+  endsAt              DateTime?
+  notes               String?
+  createdByUserId     String
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  administradora Organization      @relation("CommissionAdm", fields: [administradoraOrgId], references: [id], onDelete: Cascade)
+  supplier       Organization      @relation("CommissionSupplier", fields: [supplierOrgId], references: [id], onDelete: Cascade)
+  entries        CommissionEntry[]
+
+  @@index([administradoraOrgId])
+  @@index([supplierOrgId])
+}
+
+model CommissionEntry {
+  id                  String                @id @default(cuid())
+  agreementId         String?
+  administradoraOrgId String
+  supplierOrgId       String
+  quotationId         String?
+  proposalId          String?
+  conditionId         String?
+  categoryId          String?
+  volumeCents         Int
+  commissionCents     Int
+  yearMonth           String
+  status              CommissionEntryStatus @default(expected)
+  notes               String?
+  createdAt           DateTime              @default(now())
+
+  agreement      CommissionAgreement? @relation(fields: [agreementId], references: [id], onDelete: SetNull)
+  administradora Organization         @relation("CommissionEntryAdm", fields: [administradoraOrgId], references: [id], onDelete: Cascade)
+  supplier       Organization         @relation("CommissionEntrySupplier", fields: [supplierOrgId], references: [id], onDelete: Cascade)
+
+  @@index([administradoraOrgId, yearMonth])
+  @@index([supplierOrgId, yearMonth])
+  @@index([quotationId])
+}
+
+model CategoryAddonPurchase {
+  id             String   @id @default(cuid())
+  organizationId String
+  quantity       Int
+  unitPriceCents Int
+  totalCents     Int
+  checkoutId     String?
+  status         String   @default("pending")
+  createdAt      DateTime @default(now())
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  checkout     PaymentCheckout? @relation(fields: [checkoutId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
 }
 
 model EmailToken {
@@ -536,4 +791,27 @@ model AuditLog {
 
   @@index([userId])
   @@index([action])
+}
+
+enum ReferralRewardKind {
+  recurring_credit
+  discount
+  commission_share
+}
+
+model ReferralReward {
+  id              String             @id @default(cuid())
+  referrerUserId  String
+  referredUserId  String
+  kind            ReferralRewardKind @default(recurring_credit)
+  amountCents     Int                @default(0)
+  notes           String?
+  yearMonth       String?
+  createdAt       DateTime           @default(now())
+
+  referrer User @relation("ReferralReferrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referred User @relation("ReferralReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
+
+  @@index([referrerUserId])
+  @@index([referredUserId])
 }

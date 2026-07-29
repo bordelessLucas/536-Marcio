@@ -56,7 +56,17 @@ const ALL_ITEMS: NavItem[] = [
     label: "Meu Plano",
     href: "/app/meu-plano",
     icon: Wallet,
-    types: [OrganizationType.fornecedor],
+    types: [
+      OrganizationType.fornecedor,
+      OrganizationType.sindico,
+      OrganizationType.administradora,
+    ],
+  },
+  {
+    label: "Migração",
+    href: "/app/migracao",
+    icon: Building2,
+    types: [OrganizationType.sindico],
   },
   {
     label: "Parcerias",
@@ -79,6 +89,13 @@ const ALL_ITEMS: NavItem[] = [
     types: [OrganizationType.administradora],
     roles: [MemberRole.master],
     financialOnly: true,
+  },
+  {
+    label: "Indicações",
+    href: "/app/indicacoes",
+    icon: Users,
+    types: [OrganizationType.administradora],
+    roles: [MemberRole.master],
   },
   {
     label: "Equipe",
@@ -107,6 +124,12 @@ const ALL_ITEMS: NavItem[] = [
     label: "Compliance",
     href: "/app/plataforma/compliance",
     icon: FileCheck2,
+    types: [OrganizationType.master_admin],
+  },
+  {
+    label: "Banners",
+    href: "/app/plataforma/banners",
+    icon: ClipboardList,
     types: [OrganizationType.master_admin],
   },
   {

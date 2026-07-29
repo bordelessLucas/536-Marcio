@@ -1,0 +1,77 @@
+import type { BannerAudienceMode, OrganizationType } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+
+export type AppBannerSlide = {
+  id: string;
+  title: string | null;
+  imageUrl: string;
+  linkUrl: string | null;
+};
+
+function parseJsonArray(raw: string | null | undefined): string[] {
+  try {
+    const value = JSON.parse(raw || "[]") as unknown;
+    return Array.isArray(value) ? value.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getLandingBannersForPublic(): Promise<AppBannerSlide[]> {
+  const banners = await prisma.landingBanner.findMany({
+    where: { isActive: true, showOnLanding: true },
+    orderBy: { sortOrder: "asc" },
+    take: 10,
+  });
+  return banners.map((item) => ({
+    id: item.id,
+    title: item.title,
+    imageUrl: item.imageUrl,
+    linkUrl: item.linkUrl,
+  }));
+}
+
+export async function getAppBannersForSession(input: {
+  userId: string;
+  organizationType: OrganizationType;
+}): Promise<AppBannerSlide[]> {
+  const banners = await prisma.landingBanner.findMany({
+    where: { isActive: true, showInApp: true },
+    orderBy: { sortOrder: "asc" },
+    take: 20,
+  });
+
+  const filtered = banners.filter((banner) =>
+    matchesAudience({
+      mode: banner.audienceMode,
+      profiles: parseJsonArray(banner.targetProfilesJson),
+      userIds: parseJsonArray(banner.targetUserIdsJson),
+      userId: input.userId,
+      organizationType: input.organizationType,
+    }),
+  );
+
+  return filtered.slice(0, 10).map((item) => ({
+    id: item.id,
+    title: item.title,
+    imageUrl: item.imageUrl,
+    linkUrl: item.linkUrl,
+  }));
+}
+
+export function matchesAudience(input: {
+  mode: BannerAudienceMode;
+  profiles: string[];
+  userIds: string[];
+  userId: string;
+  organizationType: OrganizationType;
+}): boolean {
+  if (input.mode === "all") return true;
+  if (input.mode === "profiles") {
+    return input.profiles.includes(input.organizationType);
+  }
+  if (input.mode === "users") {
+    return input.userIds.includes(input.userId);
+  }
+  return true;
+}

@@ -205,12 +205,27 @@ export async function approveConditionAction(formData: FormData): Promise<Action
             proposalId: proposal.id,
             conditionId: condition.id,
             amountCents: condition.amountCents,
-            commissionHook: "pending_dia_5",
+            commissionHook: "recordCommissionFromApproval",
             remindersClosed: true,
           }),
         },
       });
     });
+
+    try {
+      const { recordCommissionFromApproval } = await import("@/features/commissions/actions");
+      await recordCommissionFromApproval({
+        administradoraOrgId: session.organizationId,
+        supplierOrgId: proposal.organizationId,
+        quotationId: proposal.quotationId,
+        proposalId: proposal.id,
+        conditionId: condition.id,
+        volumeCents: condition.amountCents,
+        categoryId: proposal.quotation.categoryId,
+      });
+    } catch {
+      // não bloqueia aprovação se ledger falhar
+    }
 
     await writeAuditLog({
       userId: session.userId,

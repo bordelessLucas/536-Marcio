@@ -41,7 +41,8 @@ export function CondominiumsClient({ condominiums, query }: Props) {
                 <th className="px-4 py-3 font-medium">Nome</th>
                 <th className="px-4 py-3 font-medium">Endereço</th>
                 <th className="px-4 py-3 font-medium">CNPJ</th>
-                <th className="px-4 py-3 font-medium" />
+                <th className="px-4 py-3 font-medium">Torres/Unid.</th>
+                <th className="px-4 py-3 font-medium">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -51,6 +52,9 @@ export function CondominiumsClient({ condominiums, query }: Props) {
                   <td className="px-4 py-3 text-neutral-600">{item.address}</td>
                   <td className="px-4 py-3 text-neutral-600">
                     {item.document ? formatCnpj(item.document) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-neutral-600">
+                    {item.towers ?? "—"} / {item.units ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-3">
@@ -66,6 +70,8 @@ export function CondominiumsClient({ condominiums, query }: Props) {
                             contactName: item.contactName,
                             contactEmail: item.contactEmail,
                             contactPhone: item.contactPhone,
+                            towers: item.towers,
+                            units: item.units,
                           })
                         }
                       >
@@ -78,7 +84,7 @@ export function CondominiumsClient({ condominiums, query }: Props) {
                       >
                         <input type="hidden" name="id" value={item.id} />
                         <button type="submit" className="text-red-600 hover:underline">
-                          Arquivar
+                          Excluir
                         </button>
                       </form>
                     </div>
@@ -87,7 +93,7 @@ export function CondominiumsClient({ condominiums, query }: Props) {
               ))}
               {condominiums.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-neutral-500">
+                  <td colSpan={5} className="px-4 py-8 text-center text-neutral-500">
                     Nenhum condomínio encontrado.
                   </td>
                 </tr>

@@ -16,6 +16,7 @@
     "smoke:dia-02": "tsx scripts/smoke-dia-02.ts",
     "smoke:dia-03": "tsx scripts/smoke-dia-03.ts",
     "smoke:dia-04": "tsx scripts/smoke-dia-04.ts",
+    "smoke:dia-05": "tsx scripts/smoke-dia-05.ts",
     "seed:firebase-auth": "tsx scripts/seed-firebase-auth.ts",
     "jobs:compliance-expire": "tsx scripts/jobs-compliance-expire.ts",
     "postinstall": "prisma generate"
@@ -26,6 +27,7 @@
     "clsx": "^2.1.1",
     "firebase": "^12.16.0",
     "firebase-admin": "^13.10.0",
+    "framer-motion": "^12.43.0",
     "jose": "^6.1.0",
     "lucide-react": "^0.544.0",
     "next": "^15.5.4",

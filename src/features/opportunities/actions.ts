@@ -74,7 +74,12 @@ export async function declineInviteAction(formData: FormData): Promise<ActionRes
       entityId: invite.id,
     });
 
+    // Refill: declínio libera slot até a meta máxima de propostas/convites.
+    const { runDistributionEngine } = await import("@/features/distribution/engine");
+    await runDistributionEngine(invite.quotationId);
+
     revalidatePath("/app/oportunidades");
+    revalidatePath(`/app/cotacoes/${invite.quotationId}`);
     revalidatePath("/app");
     return { ok: true, message: "Oportunidade declinada." };
   } catch (error) {

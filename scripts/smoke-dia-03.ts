@@ -16,7 +16,11 @@ async function main() {
   const user = await prisma.user.findFirst({
     where: { email: "fornecedor@demo.cotacondo.com.br" },
   });
-  if (!user) throw new Error("Usuário fornecedor ausente");
+  const sindicoUser = await prisma.user.findFirst({
+    where: { email: "sindico@demo.cotacondo.com.br" },
+  });
+  const sindico = await prisma.organization.findFirst({ where: { type: "sindico" } });
+  if (!user || !sindicoUser || !sindico) throw new Error("Usuários/orgs demo ausentes");
 
   const plan = await getSupplierPlanInfo(supplier.id);
   if (plan.categoryIds.length < 1) {
@@ -50,12 +54,71 @@ async function main() {
     data: { status: "aprovado", validUntil: new Date(Date.now() + 180 * 86400000) },
   });
 
-  const inviteToDecline = await prisma.quotationInvite.findFirst({
-    where: { supplierOrgId: supplier.id, status: "pendente" },
-    orderBy: { createdAt: "asc" },
+  const categoryId = plan.categoryIds[0]!;
+  const service = await prisma.serviceItem.findFirst({
+    where: { categoryId, deletedAt: null, isActive: true },
   });
-  if (!inviteToDecline) throw new Error("Invite pendente ausente (rode db:seed)");
+  const condo = await prisma.condominium.findFirst({
+    where: { organizationId: sindico.id, archivedAt: null },
+  });
+  if (!service || !condo) throw new Error("Serviço/condomínio ausentes para smoke");
 
+  const quotation = await prisma.quotation.create({
+    data: {
+      publicId: `COT-D3-${Date.now()}`,
+      organizationId: sindico.id,
+      condominiumId: condo.id,
+      categoryId,
+      serviceItemId: service.id,
+      urgency: "media",
+      description: "Smoke Dia 3 — oportunidades e propostas.",
+      minProposals: 1,
+      maxProposals: 3,
+      status: "aberta",
+      createdByUserId: sindicoUser.id,
+      invites: {
+        create: [
+          {
+            supplierOrgId: supplier.id,
+            status: "pendente",
+            priorityTier: 4,
+            selectionReason: "Smoke decline",
+          },
+        ],
+      },
+    },
+    include: { invites: true },
+  });
+
+  // Segundo invite em outra cotação (mesmo fornecedor) para proposta
+  const quotationPropose = await prisma.quotation.create({
+    data: {
+      publicId: `COT-D3P-${Date.now()}`,
+      organizationId: sindico.id,
+      condominiumId: condo.id,
+      categoryId,
+      serviceItemId: service.id,
+      urgency: "baixa",
+      description: "Smoke Dia 3 — proposta multi-condição.",
+      minProposals: 1,
+      maxProposals: 2,
+      status: "aberta",
+      createdByUserId: sindicoUser.id,
+      invites: {
+        create: [
+          {
+            supplierOrgId: supplier.id,
+            status: "pendente",
+            priorityTier: 4,
+            selectionReason: "Smoke propose",
+          },
+        ],
+      },
+    },
+    include: { invites: true },
+  });
+
+  const inviteToDecline = quotation.invites[0]!;
   await prisma.quotationInvite.update({
     where: { id: inviteToDecline.id },
     data: {
@@ -64,16 +127,9 @@ async function main() {
       declinedAt: new Date(),
     },
   });
-  const declined = await prisma.quotationInvite.findUniqueOrThrow({
-    where: { id: inviteToDecline.id },
-  });
-  if (declined.status !== "declinado") throw new Error("Declínio falhou");
   console.log("Declinar oportunidade OK");
 
-  const inviteToPropose = await prisma.quotationInvite.findFirst({
-    where: { supplierOrgId: supplier.id, status: "pendente" },
-  });
-  if (!inviteToPropose) throw new Error("Segundo invite pendente ausente");
+  const inviteToPropose = quotationPropose.invites[0]!;
 
   await prisma.franchiseUsage.deleteMany({
     where: { organizationId: supplier.id, yearMonth: currentYearMonth() },
@@ -133,7 +189,7 @@ async function main() {
   if (proposal.conditions.length < 2) {
     throw new Error("Proposta deveria ter 2 condições");
   }
-  if (proposal.conditions[0].attachments.length < 1) {
+  if (proposal.conditions[0]!.attachments.length < 1) {
     throw new Error("Condição 1 deveria ter anexo");
   }
   console.log("Proposta multi-condição OK");

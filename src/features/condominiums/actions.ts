@@ -39,6 +39,8 @@ export async function createCondominiumAction(formData: FormData): Promise<Actio
       contactName: formData.get("contactName") || undefined,
       contactEmail: formData.get("contactEmail") || undefined,
       contactPhone: formData.get("contactPhone") || undefined,
+      towers: formData.get("towers") || undefined,
+      units: formData.get("units") || undefined,
     });
     if (!parsed.success) {
       return { ok: false, message: parsed.error.issues[0]?.message ?? "Dados inválidos" };
@@ -53,6 +55,8 @@ export async function createCondominiumAction(formData: FormData): Promise<Actio
         contactName: parsed.data.contactName || null,
         contactEmail: parsed.data.contactEmail || null,
         contactPhone: parsed.data.contactPhone || null,
+        towers: parsed.data.towers ?? null,
+        units: parsed.data.units ?? null,
       },
     });
 
@@ -80,6 +84,8 @@ export async function updateCondominiumAction(formData: FormData): Promise<Actio
       contactName: formData.get("contactName") || undefined,
       contactEmail: formData.get("contactEmail") || undefined,
       contactPhone: formData.get("contactPhone") || undefined,
+      towers: formData.get("towers") || undefined,
+      units: formData.get("units") || undefined,
     });
     if (!id || !parsed.success) {
       return { ok: false, message: "Dados inválidos" };
@@ -99,6 +105,8 @@ export async function updateCondominiumAction(formData: FormData): Promise<Actio
         contactName: parsed.data.contactName || null,
         contactEmail: parsed.data.contactEmail || null,
         contactPhone: parsed.data.contactPhone || null,
+        towers: parsed.data.towers ?? null,
+        units: parsed.data.units ?? null,
       },
     });
 

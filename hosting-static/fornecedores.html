@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CotaCondo — Para Fornecedores</title>
+    <meta
+      name="description"
+      content="Receba oportunidades de condomínios com compliance, propostas e planos para fornecedores."
+    />
+    <link rel="icon" href="/brand/logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/site.css" />
+  </head>
+  <body class="is-supplier">
+    <header class="site-header" data-header>
+      <div class="site-header__bar">
+        <a href="/"><img class="logo" src="/brand/logo.png" alt="CotaCondo" /></a>
+        <nav class="nav" aria-label="Principal">
+          <a href="/fornecedores">Para Fornecedores</a>
+          <a href="/#cotacao">Fazer cotação</a>
+          <a data-blog-href href="https://blog.cotacondo.com.br" target="_blank" rel="noreferrer"
+            >Blog</a
+          >
+          <a data-app-href="/acesse">Acesse</a>
+        </nav>
+        <a class="btn btn-ghost header-cta" data-app-href="/cadastro?tipo=fornecedor">Começar</a>
+        <button
+          class="menu-toggle"
+          type="button"
+          data-menu-toggle
+          aria-expanded="false"
+          aria-label="Abrir menu"
+        >
+          ☰
+        </button>
+      </div>
+    </header>
+
+    <div class="menu-drawer" data-menu-drawer>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/#planos">Planos solicitante</a>
+        <a data-app-href="/acesse">Acesse</a>
+        <a data-app-href="/cadastro?tipo=fornecedor">Criar conta</a>
+      </nav>
+    </div>
+
+    <main>
+      <section class="hero">
+        <div class="hero__glow hero__glow--a" aria-hidden="true"></div>
+        <div class="hero__glow hero__glow--b" aria-hidden="true"></div>
+        <div class="container hero__grid is-supplier">
+          <div>
+            <p class="eyebrow-label">Para Fornecedores</p>
+            <h1>Receba oportunidades de condomínios com compliance e o plano certo.</h1>
+            <p class="lead">
+              Envie propostas com múltiplas condições, acompanhe o funil em Kanban e desbloqueie
+              parcerias com administradoras no plano Intermediário ou Premium.
+            </p>
+            <div class="hero__actions">
+              <a class="btn btn-primary" data-app-href="/cadastro?tipo=fornecedor">
+                Criar conta de fornecedor
+                <span class="icon-pill" aria-hidden="true">→</span>
+              </a>
+              <a class="link-accent" href="#planos-fornecedor">Ver planos</a>
+            </div>
+          </div>
+          <div class="hero__visual">
+            <img class="mascot" src="/brand/mascote.png" alt="Mascote CotaCondo" />
+            <div class="float-badge badge-a">
+              <span class="float-badge__icon" style="background: rgba(225, 29, 138, 0.1)">📥</span>
+              <p>
+                <strong>Receber oportunidades</strong>
+                <span>por categoria e plano</span>
+              </p>
+            </div>
+            <div class="float-badge badge-b">
+              <span class="float-badge__icon" style="background: rgba(20, 184, 166, 0.1)">📄</span>
+              <p>
+                <strong>Enviar proposta</strong>
+                <span>múltiplas condições</span>
+              </p>
+            </div>
+            <div class="float-badge badge-c">
+              <span class="float-badge__icon" style="background: rgba(147, 51, 234, 0.1)">🤝</span>
+              <p>
+                <strong>Plano Pro / parceria</strong>
+                <span>elegível a administradoras</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="planos-fornecedor" class="section">
+        <div class="container">
+          <div class="section__head">
+            <p class="eyebrow-label">Planos</p>
+            <h2>Planos para fornecedores</h2>
+            <p>
+              Do Free ao Premium: mais categorias, elegibilidade a parcerias e CRM no topo da
+              pirâmide.
+            </p>
+          </div>
+          <div class="plans">
+            <article class="plan">
+              <h3>Fornecedor Free</h3>
+              <p class="desc">1 cotação/mês e 1 categoria</p>
+              <p class="price">Grátis</p>
+              <p class="quota">Franquia: 1 cotação/mês</p>
+              <ul>
+                <li>1 cotação interna/mês</li>
+                <li>1 categoria do catálogo</li>
+                <li>Central de compliance</li>
+              </ul>
+              <a class="btn btn-secondary" data-app-href="/cadastro?tipo=fornecedor"
+                >Começar grátis</a
+              >
+            </article>
+            <article class="plan is-recommended">
+              <span class="plan__badge">Recomendado</span>
+              <h3>Fornecedor Intermediário</h3>
+              <p class="desc">Elegível a parcerias · 3 categorias</p>
+              <p class="price">R$&nbsp;149<span> /mês</span></p>
+              <p class="quota">Franquia: 30 cotações/mês</p>
+              <ul>
+                <li>30 cotações/mês</li>
+                <li>3 categorias inclusas</li>
+                <li>Elegível a parcerias com administradoras</li>
+              </ul>
+              <a class="btn btn-recommended" data-app-href="/checkout?plan=fornecedor-pro"
+                >Contratar</a
+              >
+            </article>
+            <article class="plan">
+              <h3>Fornecedor Premium</h3>
+              <p class="desc">CRM + até 10 categorias + parcerias</p>
+              <p class="price">R$&nbsp;249<span> /mês</span></p>
+              <p class="quota">Franquia: Ilimitada</p>
+              <ul>
+                <li>Cotações ilimitadas</li>
+                <li>Até 10 categorias + CRM</li>
+                <li>Parcerias e prioridade</li>
+              </ul>
+              <a class="btn btn-secondary" data-app-href="/checkout?plan=fornecedor-premium"
+                >Contratar</a
+              >
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" style="padding-top: 0">
+        <div class="container">
+          <div class="steps">
+            <h2>Como funciona</h2>
+            <ol>
+              <li>
+                <span class="step">1</span>
+                <strong>Cadastre-se</strong>
+                <p>Empresa, CNPJ e categorias do catálogo oficial.</p>
+              </li>
+              <li>
+                <span class="step">2</span>
+                <strong>Compliance</strong>
+                <p>Envie certidões e acompanhe o status de aprovação.</p>
+              </li>
+              <li>
+                <span class="step">3</span>
+                <strong>Propostas</strong>
+                <p>Receba convites, declina ou envie condições com anexos.</p>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section id="especialista" class="cta">
+        <div class="container">
+          <div class="cta__box">
+            <div>
+              <p class="eyebrow-label">Atendimento</p>
+              <h2>Falar com um especialista</h2>
+              <p>
+                Tire dúvidas sobre planos, categorias ou onboarding de fornecedores. Atendimento
+                humano, sem bots genéricos.
+              </p>
+            </div>
+            <a
+              class="btn btn-dark"
+              data-whatsapp-href
+              href="https://wa.me/5500000000000"
+              target="_blank"
+              rel="noreferrer"
+              >💬 Abrir WhatsApp</a
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container site-footer__grid">
+        <div>
+          <img class="logo" src="/brand/logo.png" alt="CotaCondo" />
+          <p class="blurb">
+            Plataforma de cotações para condomínios — solicitantes e fornecedores em um fluxo 100%
+            digital.
+          </p>
+        </div>
+        <div class="footer-cols">
+          <div>
+            <strong>Produto</strong>
+            <ul>
+              <li><a href="/#cotacao">Fazer cotação</a></li>
+              <li><a href="/#planos">Planos</a></li>
+              <li><a href="/fornecedores">Para Fornecedores</a></li>
+            </ul>
+          </div>
+          <div>
+            <strong>Acesso</strong>
+            <ul>
+              <li><a data-app-href="/acesse">Entrar</a></li>
+              <li><a data-app-href="/cadastro?tipo=fornecedor">Criar conta</a></li>
+              <li>
+                <a data-blog-href href="https://blog.cotacondo.com.br" target="_blank" rel="noreferrer"
+                  >Blog</a
+                >
+              </li>
+            </ul>
+          </div>
+          <div>
+            <strong>Contato</strong>
+            <ul>
+              <li>
+                <a
+                  data-whatsapp-href
+                  href="https://wa.me/5500000000000"
+                  target="_blank"
+                  rel="noreferrer"
+                  >WhatsApp</a
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="container">
+        <p class="copyright">© <span data-year>2026</span> CotaCondo. Todos os direitos reservados.</p>
+      </div>
+    </footer>
+
+    <script src="/js/config.js"></script>
+    <script src="/js/site.js"></script>
+  </body>
+</html>

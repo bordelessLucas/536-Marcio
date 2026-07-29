@@ -6,10 +6,19 @@ import { useRouter } from "next/navigation";
 import { registerAction, type ActionResult } from "@/features/auth/actions";
 import { Button } from "@/components/ui/Button";
 
-export function RegisterForm() {
+export function RegisterForm({
+  defaultType = "sindico",
+  referralCode,
+}: {
+  defaultType?: string;
+  referralCode?: string;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ActionResult | null>(null);
+  const initialType = ["sindico", "administradora", "fornecedor"].includes(defaultType)
+    ? defaultType
+    : "sindico";
 
   return (
     <form
@@ -27,6 +36,7 @@ export function RegisterForm() {
         });
       }}
     >
+      {referralCode ? <input type="hidden" name="referralCode" value={referralCode} /> : null}
       <div>
         <label className="mb-1.5 block text-sm font-medium" htmlFor="name">
           Nome completo
@@ -76,7 +86,7 @@ export function RegisterForm() {
           name="organizationType"
           required
           className="h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none ring-fuchsia-200 focus:ring-2"
-          defaultValue="sindico"
+          defaultValue={initialType}
         >
           <option value="sindico">Síndico (Solicitante)</option>
           <option value="administradora">Administradora (Solicitante)</option>

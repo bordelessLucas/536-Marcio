@@ -13,6 +13,7 @@ import { cn } from "@/lib/cn";
 
 type AppShellProps = {
   children: React.ReactNode;
+  banner?: React.ReactNode;
   session: {
     name: string;
     email: string;
@@ -27,7 +28,7 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppShell({ children, session }: AppShellProps) {
+export function AppShell({ children, session, banner }: AppShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const items = getNavItemsForSession({
@@ -142,7 +143,10 @@ export function AppShell({ children, session }: AppShellProps) {
               <Mascot variant="avatar" className="h-9 w-9" />
             </div>
           </header>
-          <main className="flex-1 px-4 py-5 md:px-6 md:py-6">{children}</main>
+          <main className="flex-1 px-4 py-5 md:px-6 md:py-6">
+            {banner}
+            {children}
+          </main>
         </div>
       </div>
     </div>

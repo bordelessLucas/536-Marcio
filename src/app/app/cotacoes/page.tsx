@@ -11,6 +11,7 @@ type PageProps = {
     categoryId?: string;
     serviceItemId?: string;
     q?: string;
+    filtro?: string;
   }>;
 };
 
@@ -18,6 +19,14 @@ export default async function CotacoesPage({ searchParams }: PageProps) {
   const session = await requireAuthorizedSession({ href: "/app/cotacoes" });
   const filters = await searchParams;
   const franchise = await getFranchiseBalance(session.organizationId);
+
+  const statusLabel: Record<string, string> = {
+    aberta: "Cotações abertas",
+    em_negociacao: "Em negociação",
+    aprovada: "Aprovadas",
+    recusada: "Recusadas",
+    finalizada_outros: "Finalizadas · Outros",
+  };
 
   const [categories, quotations] = await Promise.all([
     prisma.serviceCategory.findMany({
@@ -28,7 +37,12 @@ export default async function CotacoesPage({ searchParams }: PageProps) {
     prisma.quotation.findMany({
       where: {
         organizationId: session.organizationId,
-        ...(filters.status ? { status: filters.status as QuotationStatus } : {}),
+        ...(filters.status === "recusada"
+          ? { status: { in: ["recusada", "finalizada_outros"] } }
+          : filters.status
+            ? { status: filters.status as QuotationStatus }
+            : {}),
+        ...(filters.filtro === "com_propostas" ? { proposalsCount: { gt: 0 } } : {}),
         ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
         ...(filters.serviceItemId ? { serviceItemId: filters.serviceItemId } : {}),
         ...(filters.q
@@ -50,12 +64,19 @@ export default async function CotacoesPage({ searchParams }: PageProps) {
     }),
   ]);
 
+  const heading =
+    filters.filtro === "com_propostas"
+      ? "Com propostas recebidas"
+      : filters.status
+        ? statusLabel[filters.status] ?? "Cotações"
+        : "Todas as cotações";
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-[#9333EA]">Cotações</p>
-          <h1 className="mt-1 text-3xl font-bold text-neutral-900">Solicitações abertas</h1>
+          <h1 className="mt-1 text-3xl font-bold text-neutral-900">{heading}</h1>
           <p className="mt-2 text-neutral-600">
             Franquia:{" "}
             {franchise.isUnlimited
@@ -135,8 +156,10 @@ export default async function CotacoesPage({ searchParams }: PageProps) {
                 </td>
                 <td className="px-4 py-3 capitalize">{item.status.replace("_", " ")}</td>
                 <td className="px-4 py-3 text-right">
-                  <Link href={`/app/cotacoes/${item.id}`} className="text-[#9333EA] hover:underline">
-                    Detalhe
+                  <Link href={`/app/cotacoes/${item.id}`}>
+                    <Button type="button" size="sm" variant="secondary">
+                      Detalhe
+                    </Button>
                   </Link>
                 </td>
               </tr>

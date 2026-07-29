@@ -60,8 +60,12 @@ export async function runDistributionEngine(quotationId: string): Promise<Distri
     return result;
   }
 
+  // Declínios liberam slot: só convites ativos (não declinado/expirado) ocupam capacidade.
+  const activeInvites = quotation.invites.filter(
+    (invite) => invite.status !== "declinado" && invite.status !== "expirado",
+  );
   const existingInviteIds = new Set(quotation.invites.map((invite) => invite.supplierOrgId));
-  const slots = Math.max(quotation.maxProposals - quotation.invites.length, 0);
+  const slots = Math.max(quotation.maxProposals - activeInvites.length, 0);
   if (slots <= 0) {
     result.paused = true;
     return result;
@@ -136,15 +140,19 @@ export async function runDistributionEngine(quotationId: string): Promise<Distri
     );
     const isCompliant = hasApproved && !hasOverdueOrDenied;
 
+    const matchingFavorite = supplier.favoritedBy.find(
+      (fav) => !fav.categoryId || fav.categoryId === quotation.categoryId,
+    );
     const isFavorite =
-      quotation.organization.type === "administradora" &&
-      supplier.favoritedBy.length > 0;
+      quotation.organization.type === "administradora" && Boolean(matchingFavorite);
 
     if (isFavorite && !isFree) {
       favorites.push({
         supplierOrgId: supplier.id,
         tier: DISTRIBUTION_TIERS.favorite,
-        reason: "Favorito da administradora + plano pago + saldo",
+        reason: matchingFavorite?.categoryId
+          ? "Favorito da administradora na categoria + plano pago + saldo"
+          : "Favorito da administradora + plano pago + saldo",
       });
       continue;
     }

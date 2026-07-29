@@ -1,0 +1,95 @@
+import Link from "next/link";
+import { Check } from "lucide-react";
+import { formatPriceCents } from "@/features/billing/money";
+import { Button } from "@/components/ui/Button";
+import { Container } from "@/components/ui/Container";
+
+export type PlanCard = {
+  slug: string;
+  name: string;
+  description: string | null;
+  priceCents: number;
+  isFree: boolean;
+  monthlyQuota: number | null;
+  features: string[];
+  recommended?: boolean;
+};
+
+type PlansSectionProps = {
+  id?: string;
+  title: string;
+  subtitle: string;
+  plans: PlanCard[];
+  audience: "solicitante" | "fornecedor";
+};
+
+export function PlansSection({ id = "planos", title, subtitle, plans, audience }: PlansSectionProps) {
+  return (
+    <section id={id} className="py-20 lg:py-24">
+      <Container>
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-sm font-semibold uppercase tracking-wide text-[#9333EA]">Planos</p>
+          <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-[#0A0A0A] sm:text-4xl">
+            {title}
+          </h2>
+          <p className="mt-3 text-base text-[#6B7280] sm:text-lg">{subtitle}</p>
+        </div>
+
+        <div className="mt-12 grid gap-5 lg:grid-cols-3">
+          {plans.map((plan) => {
+            const href = plan.isFree
+              ? `/cadastro?tipo=${audience === "fornecedor" ? "fornecedor" : "sindico"}`
+              : `/checkout?plan=${plan.slug}`;
+
+            return (
+              <article
+                key={plan.slug}
+                className={`relative flex flex-col rounded-[28px] border p-6 sm:p-7 ${
+                  plan.recommended
+                    ? "border-[#9333EA]/35 bg-gradient-to-br from-white via-white to-[#FDF4FF] shadow-[0_20px_50px_-24px_rgba(147,51,234,0.45)]"
+                    : "border-black/5 bg-white/80"
+                }`}
+              >
+                {plan.recommended ? (
+                  <span className="absolute -top-3 left-6 rounded-full bg-[linear-gradient(135deg,#E11D8A,#9333EA)] px-3 py-1 text-[11px] font-semibold text-white">
+                    Recomendado
+                  </span>
+                ) : null}
+                <h3 className="text-xl font-bold text-[#0A0A0A]">{plan.name}</h3>
+                <p className="mt-2 min-h-[44px] text-sm text-[#6B7280]">
+                  {plan.description || "Plano CotaCondo"}
+                </p>
+                <p className="mt-6 text-4xl font-extrabold tracking-tight text-[#0A0A0A]">
+                  {formatPriceCents(plan.priceCents)}
+                  {!plan.isFree ? (
+                    <span className="text-base font-medium text-[#6B7280]"> /mês</span>
+                  ) : null}
+                </p>
+                <p className="mt-2 text-xs text-[#6B7280]">
+                  Franquia:{" "}
+                  {plan.monthlyQuota == null ? "Ilimitada" : `${plan.monthlyQuota} cotações/mês`}
+                </p>
+                <ul className="mt-6 flex-1 space-y-2.5">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-2 text-sm text-[#171717]">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#14B8A6]" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link href={href} className="mt-8 block">
+                  <Button
+                    className="w-full"
+                    variant={plan.recommended ? "primary" : "secondary"}
+                  >
+                    {plan.isFree ? "Começar grátis" : "Contratar"}
+                  </Button>
+                </Link>
+              </article>
+            );
+          })}
+        </div>
+      </Container>
+    </section>
+  );
+}

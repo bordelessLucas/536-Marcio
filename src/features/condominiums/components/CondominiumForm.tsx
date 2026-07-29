@@ -16,6 +16,8 @@ export type CondominiumFormValues = {
   contactName: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
+  towers: number | null;
+  units: number | null;
 };
 
 type Props = {
@@ -104,6 +106,24 @@ export function CondominiumForm({ initial = null, onCancelEdit }: Props) {
         placeholder="Telefone"
         className="h-11 w-full rounded-xl border border-black/10 px-3 text-sm"
       />
+      <div className="grid grid-cols-2 gap-3">
+        <input
+          name="towers"
+          type="number"
+          min={1}
+          defaultValue={initial?.towers ?? ""}
+          placeholder="Torres"
+          className="h-11 w-full rounded-xl border border-black/10 px-3 text-sm"
+        />
+        <input
+          name="units"
+          type="number"
+          min={1}
+          defaultValue={initial?.units ?? ""}
+          placeholder="Unidades"
+          className="h-11 w-full rounded-xl border border-black/10 px-3 text-sm"
+        />
+      </div>
       {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
       {message ? (
         <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>

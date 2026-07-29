@@ -60,8 +60,10 @@ npx firebase-tools@latest deploy --only firestore:rules,storage,hosting --projec
 ```
 
 - `firebase.json` **não** usa `frameworksBackend` (exige Blaze).
-- Hosting Firebase serve só `hosting-static/` (landing mínima).
+- Hosting Firebase serve `hosting-static/` (LP completa: home + `/fornecedores`).
+- CTAs de cadastro/login/checkout apontam para o app na Vercel (`hosting-static/js/config.js` → `appUrl`).
 - Anexos: Firebase Storage via Admin SDK se houver service account; senão `/uploads` local.
+- URL do Hosting: https://marcio-ab7d9.web.app
 
 ## Documentação
 

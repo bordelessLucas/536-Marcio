@@ -1,0 +1,145 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+export type BannerSlide = {
+  id: string;
+  title: string | null;
+  imageUrl: string;
+  linkUrl: string | null;
+};
+
+const GRADIENTS = [
+  "from-[#E11D8A] via-[#9333EA] to-[#3B82F6]",
+  "from-[#9333EA] via-[#3B82F6] to-[#14B8A6]",
+  "from-[#0B0B0F] via-[#9333EA] to-[#E11D8A]",
+  "from-[#06B6D4] via-[#3B82F6] to-[#9333EA]",
+];
+
+type BannerCarouselProps = {
+  banners: BannerSlide[];
+  compact?: boolean;
+};
+
+export function BannerCarousel({ banners, compact = false }: BannerCarouselProps) {
+  const slides = banners.slice(0, 10);
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  const next = useCallback(() => {
+    setIndex((current) => (current + 1) % slides.length);
+  }, [slides.length]);
+
+  const prev = useCallback(() => {
+    setIndex((current) => (current - 1 + slides.length) % slides.length);
+  }, [slides.length]);
+
+  useEffect(() => {
+    if (slides.length <= 1 || paused) return;
+    const timer = window.setInterval(next, 5500);
+    return () => window.clearInterval(timer);
+  }, [next, paused, slides.length]);
+
+  if (slides.length === 0) return null;
+
+  const current = slides[index]!;
+
+  const content = (
+    <div
+      className={`relative flex w-full items-end overflow-hidden bg-gradient-to-br ${
+        compact
+          ? "min-h-[140px] sm:min-h-[170px] lg:min-h-[190px]"
+          : "min-h-[220px] sm:min-h-[320px] lg:min-h-[380px]"
+      } ${GRADIENTS[index % GRADIENTS.length]}`}
+    >
+      {/* imageUrl pode ser path local ou URL; usamos como camadas de textura via CSS var */}
+      <div
+        className="absolute inset-0 opacity-35"
+        style={{
+          backgroundImage: `url(${current.imageUrl})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.18),transparent_45%)]" />
+      <div className="relative z-10 w-full px-6 py-10 sm:px-12 lg:px-20">
+        <p className="max-w-3xl text-2xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
+          {current.title || "CotaCondo"}
+        </p>
+      </div>
+    </div>
+  );
+
+  const isExternal = Boolean(current.linkUrl?.startsWith("http"));
+
+  return (
+    <section
+      className="relative w-full"
+      aria-roledescription="carousel"
+      aria-label="Banners CotaCondo"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={current.id}
+          initial={{ opacity: 0.4 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.45 }}
+        >
+          {current.linkUrl ? (
+            isExternal ? (
+              <a href={current.linkUrl} target="_blank" rel="noreferrer" className="block">
+                {content}
+              </a>
+            ) : (
+              <a href={current.linkUrl} className="block">
+                {content}
+              </a>
+            )
+          ) : (
+            content
+          )}
+        </motion.div>
+      </AnimatePresence>
+
+      {slides.length > 1 ? (
+        <>
+          <button
+            type="button"
+            onClick={prev}
+            aria-label="Banner anterior"
+            className="absolute top-1/2 left-3 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/25 text-white backdrop-blur-md transition hover:bg-black/40 sm:left-6"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={next}
+            aria-label="Próximo banner"
+            className="absolute top-1/2 right-3 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/25 text-white backdrop-blur-md transition hover:bg-black/40 sm:right-6"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-2">
+            {slides.map((slide, i) => (
+              <button
+                key={slide.id}
+                type="button"
+                aria-label={`Ir para banner ${i + 1}`}
+                aria-current={i === index}
+                onClick={() => setIndex(i)}
+                className={`h-2.5 rounded-full transition-all ${
+                  i === index ? "w-7 bg-white" : "w-2.5 bg-white/50 hover:bg-white/80"
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}

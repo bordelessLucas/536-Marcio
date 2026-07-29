@@ -86,6 +86,10 @@ export async function registerAction(formData: FormData): Promise<ActionResult> 
 
     const passwordHash = await hashPassword(data.password);
     const organizationType = data.organizationType as OrganizationType;
+    const referralCode = String(formData.get("referralCode") || "").trim();
+    const referrer = referralCode
+      ? await prisma.user.findUnique({ where: { referralCode } })
+      : null;
 
     const user = await prisma.user.create({
       data: {
@@ -94,6 +98,8 @@ export async function registerAction(formData: FormData): Promise<ActionResult> 
         passwordHash,
         firebaseUid,
         privacyAcceptedAt: new Date(),
+        referredByUserId: referrer?.id ?? null,
+        referralCode: `CC-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
         consentRecords: {
           create: {
             type: "privacy_policy",
@@ -343,6 +349,15 @@ export async function forgotPasswordAction(formData: FormData): Promise<ActionRe
       return generic;
     }
 
+    const resetToken = generateResetToken();
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        token: resetToken,
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60),
+      },
+    });
+
     try {
       if (isFirebaseAuthConfigured()) {
         await firebaseSendPasswordResetEmail(email);
@@ -356,10 +371,13 @@ export async function forgotPasswordAction(formData: FormData): Promise<ActionRe
       action: "auth.password_reset_requested",
       entityType: "user",
       entityId: user.id,
-      metadata: { provider: "firebase" },
+      metadata: { provider: "firebase+local" },
     });
 
-    return generic;
+    return {
+      ...generic,
+      resetToken: process.env.NEXT_PUBLIC_APP_ENV !== "production" ? resetToken : undefined,
+    };
   } catch (error) {
     return { ok: false, message: toPublicErrorMessage(error) };
   }
@@ -378,6 +396,7 @@ export async function resetPasswordAction(formData: FormData): Promise<ActionRes
 
     const reset = await prisma.passwordResetToken.findUnique({
       where: { token: parsed.data.token },
+      include: { user: true },
     });
 
     if (!reset || reset.usedAt || reset.expiresAt < new Date()) {
@@ -398,6 +417,17 @@ export async function resetPasswordAction(formData: FormData): Promise<ActionRes
       }),
     ]);
 
+    try {
+      const { isFirebaseAdminConfigured, getAdminAuth } = await import("@/lib/firebase/admin");
+      if (isFirebaseAdminConfigured() && reset.user.firebaseUid) {
+        await getAdminAuth().updateUser(reset.user.firebaseUid, {
+          password: parsed.data.password,
+        });
+      }
+    } catch {
+      // Hash local já atualizado; Firebase pode ser sincronizado no próximo login via e-mail OOB
+    }
+
     await writeAuditLog({
       userId: reset.userId,
       action: "auth.password_reset_completed",
@@ -406,6 +436,47 @@ export async function resetPasswordAction(formData: FormData): Promise<ActionRes
     });
 
     return { ok: true, message: "Senha atualizada. Faça login." };
+  } catch (error) {
+    return { ok: false, message: toPublicErrorMessage(error) };
+  }
+}
+
+export async function updateProfileAction(formData: FormData): Promise<ActionResult> {
+  try {
+    const { getSession } = await import("@/lib/auth/session");
+    const session = await getSession();
+    if (!session) {
+      return { ok: false, message: "Faça login para continuar." };
+    }
+
+    const name = String(formData.get("name") ?? "").trim();
+    if (name.length < 2) {
+      return { ok: false, message: "Informe um nome com pelo menos 2 caracteres." };
+    }
+
+    const previous = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { name: true },
+    });
+
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: { name },
+    });
+
+    await writeAuditLog({
+      userId: session.userId,
+      action: "auth.profile_updated",
+      entityType: "user",
+      entityId: session.userId,
+      metadata: { previousName: previous?.name ?? null, name },
+    });
+
+    const { revalidatePath } = await import("next/cache");
+    revalidatePath("/app/configuracoes");
+    revalidatePath("/app");
+
+    return { ok: true, message: "Perfil atualizado." };
   } catch (error) {
     return { ok: false, message: toPublicErrorMessage(error) };
   }
