@@ -9,6 +9,7 @@ export type BannerSlide = {
   title: string | null;
   imageUrl: string;
   linkUrl: string | null;
+  scrollIntervalMs?: number;
 };
 
 const GRADIENTS = [
@@ -38,9 +39,10 @@ export function BannerCarousel({ banners, compact = false }: BannerCarouselProps
 
   useEffect(() => {
     if (slides.length <= 1 || paused) return;
-    const timer = window.setInterval(next, 5500);
+    const interval = slides[index]?.scrollIntervalMs ?? 5500;
+    const timer = window.setInterval(next, Math.max(2000, interval));
     return () => window.clearInterval(timer);
-  }, [next, paused, slides.length]);
+  }, [next, paused, slides, index]);
 
   if (slides.length === 0) return null;
 

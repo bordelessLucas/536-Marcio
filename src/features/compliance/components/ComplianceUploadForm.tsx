@@ -13,6 +13,8 @@ const DOC_TYPES = [
   "FGTS",
   "INSS",
   "Alvará de funcionamento",
+  "Contrato social",
+  "CREA",
   "Outro",
 ];
 
@@ -56,6 +58,9 @@ export function ComplianceUploadForm({ replacesId }: Props) {
       <h2 className="text-lg font-semibold text-neutral-900">
         {replacesId ? "Renovar documento" : "Enviar documento"}
       </h2>
+      <p className="text-xs text-neutral-500">
+        Você pode enviar vários documentos (certidões, contrato social, CREA, etc.).
+      </p>
       {replacesId ? <input type="hidden" name="replacesId" value={replacesId} /> : null}
       <select
         name="documentType"

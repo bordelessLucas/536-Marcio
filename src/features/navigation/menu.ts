@@ -94,8 +94,11 @@ const ALL_ITEMS: NavItem[] = [
     label: "Indicações",
     href: "/app/indicacoes",
     icon: Users,
-    types: [OrganizationType.administradora],
-    roles: [MemberRole.master],
+    types: [
+      OrganizationType.administradora,
+      OrganizationType.sindico,
+      OrganizationType.fornecedor,
+    ],
   },
   {
     label: "Equipe",

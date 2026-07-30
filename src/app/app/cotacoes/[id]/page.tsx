@@ -24,7 +24,17 @@ export default async function CotacaoDetalhePage({ params }: PageProps) {
       serviceItem: true,
       attachments: true,
       invites: {
-        include: { supplier: { select: { name: true } } },
+        include: {
+          supplier: {
+            select: {
+              id: true,
+              name: true,
+              googleProfileUrl: true,
+              reclameAquiUrl: true,
+              complianceDocuments: { select: { status: true } },
+            },
+          },
+        },
         orderBy: [{ priorityTier: "asc" }, { createdAt: "asc" }],
       },
       proposals: {
@@ -33,7 +43,15 @@ export default async function CotacaoDetalhePage({ params }: PageProps) {
             include: { attachments: true },
             orderBy: { sortOrder: "asc" },
           },
-          organization: { select: { name: true } },
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              googleProfileUrl: true,
+              reclameAquiUrl: true,
+              complianceDocuments: { select: { status: true } },
+            },
+          },
           messages: {
             orderBy: { createdAt: "asc" },
             include: { organization: { select: { name: true } } },
@@ -49,11 +67,18 @@ export default async function CotacaoDetalhePage({ params }: PageProps) {
       proposalId: proposal.id,
       conditionId: condition.id,
       supplierName: proposal.organization.name,
+      supplierOrgId: proposal.organization.id,
       status: proposal.status,
       amountCents: condition.amountCents,
       paymentTerms: condition.paymentTerms,
       attachmentName: condition.attachments[0]?.fileName ?? null,
       createdAt: proposal.createdAt.toISOString(),
+      googleProfileUrl: proposal.organization.googleProfileUrl,
+      reclameAquiUrl: proposal.organization.reclameAquiUrl,
+      complianceApproved: proposal.organization.complianceDocuments.filter(
+        (d) => d.status === "aprovado",
+      ).length,
+      complianceTotal: proposal.organization.complianceDocuments.length,
     })),
   );
 
@@ -151,6 +176,7 @@ export default async function CotacaoDetalhePage({ params }: PageProps) {
           status: invite.status,
           tier: invite.priorityTier,
           reason: invite.selectionReason,
+          acceptedAt: invite.acceptedAt?.toISOString() ?? null,
         }))}
         otherCompanyName={quotation.otherCompanyName}
         otherFinalAmountCents={quotation.otherFinalAmountCents}

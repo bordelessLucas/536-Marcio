@@ -13,16 +13,18 @@ export function Logo({ className, href = "/", priority = false }: LogoProps) {
     <Image
       src="/brand/logo.png"
       alt="CotaCondo"
-      width={200}
-      height={64}
+      width={320}
+      height={104}
+      quality={100}
       priority={priority}
-      className={cn("w-auto", className || "h-12 md:h-14")}
+      sizes="140px"
+      className={cn("w-auto object-contain object-left", className || "h-8")}
     />
   );
 
   if (!href) return image;
   return (
-    <Link href={href} className="inline-flex items-center" aria-label="CotaCondo">
+    <Link href={href} className="inline-flex shrink-0 items-center" aria-label="CotaCondo">
       {image}
     </Link>
   );

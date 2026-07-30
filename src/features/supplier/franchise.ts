@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getPlanGate, type PlanFeatures } from "@/features/billing/plan-gate";
 import { currentYearMonth } from "@/features/quotations/franchise";
 
 export type SupplierFranchiseBalance = {
@@ -23,6 +24,20 @@ function resolveLimit(input: {
     return input.planQuota;
   }
   return input.globalFreeQuota ?? 1;
+}
+
+function parseFeatures(json: string | null | undefined): PlanFeatures & {
+  segmentsIncluded?: number;
+  allowExtraCategoriesFree?: boolean;
+} {
+  try {
+    return JSON.parse(json || "{}") as PlanFeatures & {
+      segmentsIncluded?: number;
+      allowExtraCategoriesFree?: boolean;
+    };
+  } catch {
+    return {};
+  }
 }
 
 async function loadContext(organizationId: string, yearMonth: string) {
@@ -70,48 +85,86 @@ export async function getSupplierFranchiseBalance(
   return toBalance(yearMonth, limit, used);
 }
 
+export type SupplierSegmentLink = {
+  id: string;
+  categoryId: string;
+  categoryName: string;
+  serviceItemId: string | null;
+  segmentName: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  isIncluded: boolean;
+};
+
 export type SupplierPlanInfo = {
   planName: string;
   planSlug: string;
   isFree: boolean;
   monthlyQuota: number | null;
   categoriesIncluded: number;
+  segmentsIncluded: number;
+  allowExtraCategoriesFree: boolean;
   categoryIds: string[];
+  segmentIds: string[];
   categories: Array<{ id: string; name: string; slug: string; isIncluded: boolean }>;
+  links: SupplierSegmentLink[];
   franchise: SupplierFranchiseBalance;
   priceCents: number;
 };
 
 export async function getSupplierPlanInfo(organizationId: string): Promise<SupplierPlanInfo> {
   const yearMonth = currentYearMonth();
-  const { limit, used, subscription } = await loadContext(organizationId, yearMonth);
+  const { limit, used, subscription, override } = await loadContext(organizationId, yearMonth);
   const franchise = toBalance(yearMonth, limit, used);
 
   const plan = subscription?.plan;
-  let features: { categoriesIncluded?: number } = {};
-  try {
-    features = JSON.parse(plan?.featuresJson ?? "{}") as { categoriesIncluded?: number };
-  } catch {
-    features = {};
-  }
+  const planFeatures = parseFeatures(plan?.featuresJson);
+  const overrideFeatures = parseFeatures(override?.featuresJson);
+  const features = { ...planFeatures, ...overrideFeatures };
 
   const links = await prisma.organizationCategory.findMany({
     where: { organizationId },
-    include: { category: true },
+    include: { category: true, serviceItem: true },
     orderBy: { createdAt: "asc" },
   });
+
+  const uniqueCategories = new Map<string, { id: string; name: string; slug: string; isIncluded: boolean }>();
+  for (const link of links) {
+    if (!uniqueCategories.has(link.categoryId)) {
+      uniqueCategories.set(link.categoryId, {
+        id: link.category.id,
+        name: link.category.name,
+        slug: link.category.slug,
+        isIncluded: link.isIncluded,
+      });
+    }
+  }
+
+  const categoriesIncluded = features.categoriesIncluded ?? (plan?.isFree === false ? 3 : 1);
+  const segmentsIncluded = features.segmentsIncluded ?? categoriesIncluded;
+  const allowExtra = Boolean(features.allowExtraCategoriesFree);
 
   return {
     planName: plan?.name ?? "Fornecedor Free",
     planSlug: plan?.slug ?? "fornecedor-free",
     isFree: plan?.isFree ?? true,
     monthlyQuota: limit,
-    categoriesIncluded: features.categoriesIncluded ?? 1,
-    categoryIds: links.map((link) => link.categoryId),
-    categories: links.map((link) => ({
-      id: link.category.id,
-      name: link.category.name,
-      slug: link.category.slug,
+    categoriesIncluded: allowExtra ? Math.max(categoriesIncluded, 99) : categoriesIncluded,
+    segmentsIncluded: allowExtra ? Math.max(segmentsIncluded, 99) : segmentsIncluded,
+    allowExtraCategoriesFree: allowExtra,
+    categoryIds: [...uniqueCategories.keys()],
+    segmentIds: links.map((l) => l.serviceItemId).filter((id): id is string => Boolean(id)),
+    categories: [...uniqueCategories.values()],
+    links: links.map((link) => ({
+      id: link.id,
+      categoryId: link.categoryId,
+      categoryName: link.category.name,
+      serviceItemId: link.serviceItemId,
+      segmentName: link.serviceItem?.name ?? null,
+      contactName: link.contactName,
+      contactEmail: link.contactEmail,
+      contactPhone: link.contactPhone,
       isIncluded: link.isIncluded,
     })),
     franchise,
@@ -122,14 +175,26 @@ export async function getSupplierPlanInfo(organizationId: string): Promise<Suppl
 export async function assertSupplierCanAccessCategory(
   organizationId: string,
   categoryId: string,
+  serviceItemId?: string,
 ): Promise<void> {
-  const link = await prisma.organizationCategory.findUnique({
-    where: {
-      organizationId_categoryId: { organizationId, categoryId },
-    },
+  const links = await prisma.organizationCategory.findMany({
+    where: { organizationId, categoryId },
   });
-  if (!link) {
+  if (links.length === 0) {
     throw new Error("CATEGORY_NOT_IN_PLAN");
+  }
+  if (serviceItemId) {
+    const match = links.some(
+      (link) => link.serviceItemId === serviceItemId || link.serviceItemId == null,
+    );
+    if (!match) throw new Error("SEGMENT_NOT_IN_PLAN");
+  }
+}
+
+export async function assertSupplierCanChat(organizationId: string): Promise<void> {
+  const gate = await getPlanGate(organizationId);
+  if (!gate || gate.isFree) {
+    throw new Error("CHAT_REQUIRES_PAID_PLAN");
   }
 }
 

@@ -188,7 +188,24 @@ export async function recordCommissionFromApproval(input: {
         commissionCents,
         volumeCents: input.volumeCents,
         quotationId: input.quotationId,
+        administradoraOrgId: input.administradoraOrgId,
+        supplierOrgId: input.supplierOrgId,
       }),
+    },
+  });
+
+  const { notifyAfterDomainEvent } = await import("@/features/notifications/notify-after");
+  await notifyAfterDomainEvent({
+    type: "commission.expected",
+    entityType: "commission_entry",
+    entityId: entry.id,
+    organizationId: input.administradoraOrgId,
+    payload: {
+      commissionCents,
+      volumeCents: input.volumeCents,
+      quotationId: input.quotationId,
+      administradoraOrgId: input.administradoraOrgId,
+      supplierOrgId: input.supplierOrgId,
     },
   });
 

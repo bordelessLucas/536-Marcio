@@ -3,6 +3,9 @@ import { requireAuthorizedSession } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { markOverdueCompliance } from "@/features/compliance/expire";
 import { ComplianceUploadForm } from "@/features/compliance/components/ComplianceUploadForm";
+import { updateReputationLinksAction } from "@/features/compliance/actions";
+import { formAction } from "@/lib/form-action";
+import { Button } from "@/components/ui/Button";
 
 const STATUS_LABEL: Record<string, string> = {
   aprovado: "Aprovado",
@@ -26,11 +29,14 @@ export default async function CompliancePage() {
 
   await markOverdueCompliance(session.organizationId);
 
-  const documents = await prisma.complianceDocument.findMany({
-    where: { organizationId: session.organizationId },
-    orderBy: { createdAt: "desc" },
-    include: { replaces: { select: { id: true, documentType: true, createdAt: true } } },
-  });
+  const [documents, organization] = await Promise.all([
+    prisma.complianceDocument.findMany({
+      where: { organizationId: session.organizationId },
+      orderBy: { createdAt: "desc" },
+      include: { replaces: { select: { id: true, documentType: true, createdAt: true } } },
+    }),
+    prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -38,8 +44,38 @@ export default async function CompliancePage() {
         <p className="text-sm font-semibold uppercase tracking-wide text-[#9333EA]">Compliance</p>
         <h1 className="mt-1 text-3xl font-bold text-neutral-900">Central de documentação</h1>
         <p className="mt-2 text-neutral-600">
-          Envie certidões com validade semestral e acompanhe o status da análise.
+          Envie múltiplos documentos (certidões, contrato social, CREA…) e links opcionais de reputação.
         </p>
+      </div>
+
+      <div className="rounded-2xl border border-black/5 bg-white/80 p-5">
+        <h2 className="font-semibold">Reputação (opcional)</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          Exibidos no comparativo do solicitante para consulta individual.
+        </p>
+        <form action={formAction(updateReputationLinksAction)} className="mt-4 grid gap-3 md:grid-cols-2">
+          <label className="text-sm">
+            Perfil Google
+            <input
+              name="googleProfileUrl"
+              type="url"
+              defaultValue={organization.googleProfileUrl ?? ""}
+              placeholder="https://maps.google.com/..."
+              className="mt-1 h-10 w-full rounded-xl border border-black/10 px-3"
+            />
+          </label>
+          <label className="text-sm">
+            Reclame Aqui
+            <input
+              name="reclameAquiUrl"
+              type="url"
+              defaultValue={organization.reclameAquiUrl ?? ""}
+              placeholder="https://www.reclameaqui.com.br/..."
+              className="mt-1 h-10 w-full rounded-xl border border-black/10 px-3"
+            />
+          </label>
+          <Button type="submit">Salvar links</Button>
+        </form>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">

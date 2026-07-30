@@ -158,10 +158,16 @@ export async function inviteTeamMemberAction(formData: FormData): Promise<Action
 export async function registerReferralRewardAction(formData: FormData): Promise<ActionResult> {
   try {
     const session = await requireAuthorizedSession({
-      types: [OrganizationType.administradora],
-      roles: [MemberRole.master],
+      types: [OrganizationType.administradora, OrganizationType.sindico, OrganizationType.fornecedor],
       href: "/app/indicacoes",
     });
+
+    if (
+      session.organizationType === OrganizationType.administradora &&
+      session.role !== MemberRole.master
+    ) {
+      return { ok: false, message: "Apenas Master da Adm registra ganhos manuais." };
+    }
 
     const referredUserId = String(formData.get("referredUserId") ?? "");
     const kind = String(formData.get("kind") ?? "recurring_credit");
@@ -169,6 +175,11 @@ export async function registerReferralRewardAction(formData: FormData): Promise<
     if (!referredUserId || !Number.isFinite(amountCents)) {
       return { ok: false, message: "Dados inválidos." };
     }
+
+    const referred = await prisma.user.findFirst({
+      where: { id: referredUserId, referredByUserId: session.userId },
+    });
+    if (!referred) return { ok: false, message: "Indicado inválido." };
 
     await prisma.referralReward.create({
       data: {

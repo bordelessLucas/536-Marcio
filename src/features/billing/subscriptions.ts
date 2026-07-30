@@ -3,6 +3,7 @@ import type { Plan, Subscription } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
 import { getPaymentProvider } from "@/features/billing/payment-provider";
+import { calculateProrationCents } from "@/features/billing/money";
 
 function addMonths(date: Date, months: number): Date {
   const next = new Date(date);
@@ -110,6 +111,20 @@ export async function activatePlanChange(input: {
     return { status: "scheduled" as const, plan: toPlan };
   }
 
+  const periodStart = current?.currentPeriodStart ?? now;
+  const existingPeriodEnd = current?.currentPeriodEnd ?? periodEnd;
+  const prorationCents =
+    input.prorationCents ??
+    (current
+      ? calculateProrationCents({
+          fromPriceCents: current.plan.priceCents,
+          toPriceCents: toPlan.priceCents,
+          periodStart,
+          periodEnd: existingPeriodEnd,
+          asOf: now,
+        })
+      : 0);
+
   // Upgrade / free / activate immediate
   if (current) {
     await prisma.subscription.update({
@@ -146,7 +161,7 @@ export async function activatePlanChange(input: {
       changeType: input.changeType,
       effectiveAt: now,
       checkoutId: input.checkoutId,
-      prorationCents: input.prorationCents ?? 0,
+      prorationCents,
     },
   });
 
@@ -166,6 +181,15 @@ export async function activatePlanChange(input: {
       organizationId: input.organizationId,
       payload: JSON.stringify({ planSlug: toPlan.slug, changeType: input.changeType }),
     },
+  });
+
+  const { notifyAfterDomainEvent } = await import("@/features/notifications/notify-after");
+  await notifyAfterDomainEvent({
+    type: "subscription.activated",
+    entityType: "organization",
+    entityId: input.organizationId,
+    organizationId: input.organizationId,
+    payload: { planSlug: toPlan.slug, changeType: input.changeType, organizationId: input.organizationId },
   });
 
   return { status: "active" as const, plan: toPlan };
@@ -411,7 +435,6 @@ export async function fulfillCheckoutPaid(checkoutId: string, userId?: string | 
       userId: userId ?? checkout.userId,
       immediate: true,
       checkoutId: checkout.id,
-      prorationCents: 0,
     });
   }
 
@@ -423,28 +446,42 @@ export async function fulfillCheckoutPaid(checkoutId: string, userId?: string | 
     const categoryIds = metadata.categoryIds ?? [];
     const unitPrice = metadata.unitPriceCents ?? Math.round(checkout.amountCents / checkout.quantity);
     for (const categoryId of categoryIds) {
-      await prisma.organizationCategory.upsert({
+      const firstSegment = await prisma.serviceItem.findFirst({
+        where: { categoryId, deletedAt: null, isActive: true },
+        orderBy: { sortOrder: "asc" },
+      });
+      if (!firstSegment) continue;
+
+      const existing = await prisma.organizationCategory.findFirst({
         where: {
-          organizationId_categoryId: {
-            organizationId: checkout.organizationId,
-            categoryId,
-          },
-        },
-        update: {
-          isAddon: true,
-          isIncluded: false,
-          unitPriceCents: unitPrice,
-          checkoutId: checkout.id,
-        },
-        create: {
           organizationId: checkout.organizationId,
           categoryId,
-          isAddon: true,
-          isIncluded: false,
-          unitPriceCents: unitPrice,
-          checkoutId: checkout.id,
+          serviceItemId: firstSegment.id,
         },
       });
+      if (existing) {
+        await prisma.organizationCategory.update({
+          where: { id: existing.id },
+          data: {
+            isAddon: true,
+            isIncluded: false,
+            unitPriceCents: unitPrice,
+            checkoutId: checkout.id,
+          },
+        });
+      } else {
+        await prisma.organizationCategory.create({
+          data: {
+            organizationId: checkout.organizationId,
+            categoryId,
+            serviceItemId: firstSegment.id,
+            isAddon: true,
+            isIncluded: false,
+            unitPriceCents: unitPrice,
+            checkoutId: checkout.id,
+          },
+        });
+      }
     }
     await prisma.categoryAddonPurchase.updateMany({
       where: { checkoutId: checkout.id },

@@ -72,9 +72,27 @@ export async function startNegotiationAction(formData: FormData): Promise<Action
           entityType: "quotation",
           entityId: quotationId,
           organizationId: session.organizationId,
-          payload: JSON.stringify({ proposalIds: proposals.map((item) => item.id) }),
+          payload: JSON.stringify({
+            proposalIds: proposals.map((item) => item.id),
+            quotationId,
+            solicitanteOrgId: session.organizationId,
+            supplierOrgId: proposals[0]?.organizationId,
+          }),
         },
       });
+    });
+
+    const { notifyAfterDomainEvent } = await import("@/features/notifications/notify-after");
+    await notifyAfterDomainEvent({
+      type: "negotiation.started",
+      entityType: "quotation",
+      entityId: quotationId,
+      organizationId: session.organizationId,
+      payload: {
+        quotationId,
+        solicitanteOrgId: session.organizationId,
+        supplierOrgId: proposals[0]?.organizationId,
+      },
     });
 
     await writeAuditLog({
@@ -111,8 +129,20 @@ export async function sendNegotiationMessageAction(formData: FormData): Promise<
 
     const isSolicitante = proposal.quotation.organizationId === session.organizationId;
     const isSupplier = proposal.organizationId === session.organizationId;
-    if (!isSolicitante && !isSupplier) {
+    const isMasterAdmin = session.organizationType === OrganizationType.master_admin;
+    if (!isSolicitante && !isSupplier && !isMasterAdmin) {
       return { ok: false, message: "Sem permissão." };
+    }
+    if (isSupplier) {
+      const { assertSupplierCanChat } = await import("@/features/supplier/franchise");
+      try {
+        await assertSupplierCanChat(session.organizationId);
+      } catch {
+        return {
+          ok: false,
+          message: "Chat com o solicitante disponível no plano pago. Faça upgrade para solicitar informações.",
+        };
+      }
     }
     if (proposal.status !== "em_negociacao" && proposal.quotation.status !== "em_negociacao") {
       return { ok: false, message: "Proposta não está em negociação." };
@@ -205,11 +235,28 @@ export async function approveConditionAction(formData: FormData): Promise<Action
             proposalId: proposal.id,
             conditionId: condition.id,
             amountCents: condition.amountCents,
+            supplierOrgId: proposal.organizationId,
+            quotationId: proposal.quotationId,
             commissionHook: "recordCommissionFromApproval",
             remindersClosed: true,
           }),
         },
       });
+    });
+
+    const { notifyAfterDomainEvent } = await import("@/features/notifications/notify-after");
+    await notifyAfterDomainEvent({
+      type: "quotation.approved",
+      entityType: "quotation",
+      entityId: proposal.quotationId,
+      organizationId: session.organizationId,
+      payload: {
+        proposalId: proposal.id,
+        conditionId: condition.id,
+        amountCents: condition.amountCents,
+        supplierOrgId: proposal.organizationId,
+        quotationId: proposal.quotationId,
+      },
     });
 
     try {
@@ -295,10 +342,26 @@ export async function approveOthersAction(formData: FormData): Promise<ActionRes
           payload: JSON.stringify({
             companyName: parsed.data.companyName,
             amountCents,
+            providerName: parsed.data.companyName,
+            quotationId: quotation.id,
             remindersClosed: true,
           }),
         },
       });
+    });
+
+    const { notifyAfterDomainEvent } = await import("@/features/notifications/notify-after");
+    await notifyAfterDomainEvent({
+      type: "quotation.finalized_others",
+      entityType: "quotation",
+      entityId: quotation.id,
+      organizationId: session.organizationId,
+      payload: {
+        companyName: parsed.data.companyName,
+        providerName: parsed.data.companyName,
+        quotationId: quotation.id,
+        amountCents,
+      },
     });
 
     await writeAuditLog({
@@ -385,6 +448,75 @@ export async function updateProposalDuringNegotiationAction(
     revalidatePath(`/app/cotacoes/${proposal.quotationId}`);
     revalidatePath("/app/oportunidades");
     return { ok: true, message: "Condições atualizadas." };
+  } catch (error) {
+    return { ok: false, message: toPublicErrorMessage(error) };
+  }
+}
+
+export async function reinforceInviteAction(formData: FormData): Promise<ActionResult> {
+  try {
+    const session = await requireSolicitante();
+    const inviteId = String(formData.get("inviteId") ?? "");
+    if (!inviteId) return { ok: false, message: "Convite inválido." };
+
+    const invite = await prisma.quotationInvite.findFirst({
+      where: {
+        id: inviteId,
+        quotation: { organizationId: session.organizationId },
+      },
+      include: {
+        quotation: true,
+        supplier: { include: { members: { include: { user: true } } } },
+      },
+    });
+    if (!invite) return { ok: false, message: "Convite não encontrado." };
+    if (invite.status === "declinado" || invite.status === "expirado") {
+      return { ok: false, message: "Convite encerrado." };
+    }
+
+    const { notifyOrgMembers } = await import("@/features/notifications/service");
+    const { sendTemplatedEmail } = await import("@/features/notifications/email-provider");
+
+    await notifyOrgMembers(invite.supplierOrgId, {
+      type: "invite.reinforced",
+      title: "Pedido reforçado pelo solicitante",
+      body: `A cotação ${invite.quotation.publicId} aguarda sua proposta. Por favor, responda em breve.`,
+      href: `/app/oportunidades?inviteId=${invite.id}`,
+      metadata: { inviteId: invite.id, quotationId: invite.quotationId },
+    });
+
+    for (const member of invite.supplier.members) {
+      await sendTemplatedEmail({
+        toEmail: member.user.email,
+        subject: `CotaCondo — reforço de pedido (${invite.quotation.publicId})`,
+        bodyText: `Olá ${member.user.name},\n\nO solicitante reforçou o pedido da cotação ${invite.quotation.publicId}. Envie a proposta ou decline a oportunidade.\n`,
+        template: "quotation_invite",
+        metadata: { inviteId: invite.id },
+      });
+    }
+
+    await prisma.domainEvent.create({
+      data: {
+        type: "invite.reinforced",
+        entityType: "quotation_invite",
+        entityId: invite.id,
+        organizationId: session.organizationId,
+        payload: JSON.stringify({
+          supplierOrgId: invite.supplierOrgId,
+          quotationId: invite.quotationId,
+        }),
+      },
+    });
+
+    await writeAuditLog({
+      userId: session.userId,
+      action: "invite.reinforced",
+      entityType: "quotation_invite",
+      entityId: invite.id,
+    });
+
+    revalidatePath(`/app/cotacoes/${invite.quotationId}`);
+    return { ok: true, message: "Pedido reforçado — fornecedor notificado." };
   } catch (error) {
     return { ok: false, message: toPublicErrorMessage(error) };
   }

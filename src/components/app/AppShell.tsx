@@ -8,12 +8,14 @@ import { Logo } from "@/components/brand/Logo";
 import { Mascot } from "@/components/brand/Mascot";
 import { logoutAction } from "@/features/auth/actions";
 import { getNavItemsForSession, profileLabel } from "@/features/navigation/menu";
+import { NotificationBell } from "@/features/notifications/components/NotificationBell";
 import type { MemberRole, OrganizationType } from "@prisma/client";
 import { cn } from "@/lib/cn";
 
 type AppShellProps = {
   children: React.ReactNode;
   banner?: React.ReactNode;
+  unreadNotifications?: number;
   session: {
     name: string;
     email: string;
@@ -28,7 +30,7 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppShell({ children, session, banner }: AppShellProps) {
+export function AppShell({ children, session, banner, unreadNotifications = 0 }: AppShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const items = getNavItemsForSession({
@@ -136,6 +138,7 @@ export function AppShell({ children, session, banner }: AppShellProps) {
               </div>
             </div>
             <div className="flex items-center gap-2.5">
+              <NotificationBell unreadCount={unreadNotifications} />
               <div className="hidden text-right sm:block">
                 <p className="text-sm font-semibold text-neutral-900">{session.name}</p>
                 <p className="text-xs text-neutral-500">{profile}</p>

@@ -110,11 +110,16 @@ export async function runDistributionEngine(quotationId: string): Promise<Distri
       continue;
     }
 
-    const hasCategory = supplier.categories.some((link) => link.categoryId === quotation.categoryId);
-    if (!hasCategory) {
+    const hasSegmentMatch = supplier.categories.some((link) => {
+      if (link.categoryId !== quotation.categoryId) return false;
+      // Match exato de segmento; legado sem serviceItemId ainda casa na categoria
+      if (!link.serviceItemId) return true;
+      return link.serviceItemId === quotation.serviceItemId;
+    });
+    if (!hasSegmentMatch) {
       result.skipped.push({
         supplierOrgId: supplier.id,
-        reason: "Categoria não contratada no pacote",
+        reason: "Categoria/segmento não contratado no pacote",
       });
       continue;
     }
@@ -285,7 +290,23 @@ export async function emitMinProposalsIfReached(quotationId: string): Promise<bo
       payload: JSON.stringify({
         proposalsCount: quotation.proposalsCount,
         minProposals: quotation.minProposals,
+        quotationId,
+        code: quotation.publicId,
       }),
+    },
+  });
+
+  const { notifyAfterDomainEvent } = await import("@/features/notifications/notify-after");
+  await notifyAfterDomainEvent({
+    type: "quotation.min_proposals_reached",
+    entityType: "quotation",
+    entityId: quotationId,
+    organizationId: quotation.organizationId,
+    payload: {
+      proposalsCount: quotation.proposalsCount,
+      minProposals: quotation.minProposals,
+      quotationId,
+      code: quotation.publicId,
     },
   });
 

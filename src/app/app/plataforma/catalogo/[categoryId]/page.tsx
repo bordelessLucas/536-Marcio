@@ -34,7 +34,7 @@ export default async function CategoryDetailPage({ params }: PageProps) {
         </Link>
         <h1 className="mt-2 text-3xl font-bold text-neutral-900">{category.name}</h1>
         <p className="mt-1 text-neutral-600">
-          {category.items.length} serviços · token {category.colorToken}
+          Categoria mãe · {category.items.length} segmentos · token {category.colorToken}
         </p>
       </div>
 

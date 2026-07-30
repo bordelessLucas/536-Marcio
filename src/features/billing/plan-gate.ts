@@ -11,6 +11,8 @@ export type PlanFeatureKey =
 
 export type PlanFeatures = Partial<Record<PlanFeatureKey, boolean>> & {
   categoriesIncluded?: number;
+  segmentsIncluded?: number;
+  allowExtraCategoriesFree?: boolean;
 };
 
 export type PlanGateContext = {

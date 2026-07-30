@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import {
   approveConditionAction,
   approveOthersAction,
+  reinforceInviteAction,
   sendNegotiationMessageAction,
   startNegotiationAction,
 } from "@/features/negotiation/actions";
@@ -14,11 +15,16 @@ export type CompareRow = {
   proposalId: string;
   conditionId: string;
   supplierName: string;
+  supplierOrgId: string;
   status: string;
   amountCents: number;
   paymentTerms: string;
   attachmentName: string | null;
   createdAt: string;
+  googleProfileUrl: string | null;
+  reclameAquiUrl: string | null;
+  complianceApproved: number;
+  complianceTotal: number;
 };
 
 type Message = {
@@ -44,6 +50,7 @@ type Props = {
     status: string;
     tier: number;
     reason: string | null;
+    acceptedAt: string | null;
   }>;
   otherCompanyName: string | null;
   otherFinalAmountCents: number | null;
@@ -135,6 +142,49 @@ export function QuotationComparePanel({
       </div>
 
       <div className="rounded-2xl border border-black/5 bg-white/80 p-5">
+        <h2 className="text-lg font-semibold text-neutral-900">Empresas que aceitaram</h2>
+        {invites.filter((i) => i.status === "aceito").length === 0 ? (
+          <p className="mt-3 text-sm text-neutral-500">Nenhuma empresa aceitou ainda.</p>
+        ) : (
+          <ul className="mt-3 space-y-2 text-sm">
+            {invites
+              .filter((invite) => invite.status === "aceito")
+              .map((invite) => (
+                <li
+                  key={invite.id}
+                  className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 py-2"
+                >
+                  <span className="font-medium">{invite.supplierName}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-neutral-500">
+                      Aceito
+                      {invite.acceptedAt
+                        ? ` em ${new Date(invite.acceptedAt).toLocaleDateString("pt-BR")}`
+                        : ""}
+                    </span>
+                    {isOpen ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={pending}
+                        onClick={() => {
+                          const formData = new FormData();
+                          formData.set("inviteId", invite.id);
+                          run(() => reinforceInviteAction(formData));
+                        }}
+                      >
+                        Reforçar pedido
+                      </Button>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-black/5 bg-white/80 p-5">
         <h2 className="text-lg font-semibold text-neutral-900">Convites distribuídos</h2>
         {invites.length === 0 ? (
           <p className="mt-3 text-sm text-neutral-500">Nenhum convite ainda.</p>
@@ -175,6 +225,7 @@ export function QuotationComparePanel({
               <tr>
                 <th className="px-2 py-2 font-medium">Sel.</th>
                 <th className="px-2 py-2 font-medium">Fornecedor</th>
+                <th className="px-2 py-2 font-medium">Reputação</th>
                 <th className="px-2 py-2 font-medium">Valor</th>
                 <th className="px-2 py-2 font-medium">Pagamento</th>
                 <th className="px-2 py-2 font-medium">Anexo</th>
@@ -199,6 +250,36 @@ export function QuotationComparePanel({
                     />
                   </td>
                   <td className="px-2 py-3 font-medium">{row.supplierName}</td>
+                  <td className="px-2 py-3 text-xs">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-neutral-500">
+                        Docs {row.complianceApproved}/{row.complianceTotal}
+                      </span>
+                      {row.googleProfileUrl ? (
+                        <a
+                          href={row.googleProfileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[#9333EA] hover:underline"
+                        >
+                          Google
+                        </a>
+                      ) : null}
+                      {row.reclameAquiUrl ? (
+                        <a
+                          href={row.reclameAquiUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[#9333EA] hover:underline"
+                        >
+                          Reclame Aqui
+                        </a>
+                      ) : null}
+                      {!row.googleProfileUrl && !row.reclameAquiUrl ? (
+                        <span className="text-neutral-400">—</span>
+                      ) : null}
+                    </div>
+                  </td>
                   <td className="px-2 py-3">{formatMoney(row.amountCents)}</td>
                   <td className="px-2 py-3">{row.paymentTerms}</td>
                   <td className="px-2 py-3 text-neutral-500">{row.attachmentName ?? "—"}</td>
@@ -221,7 +302,7 @@ export function QuotationComparePanel({
               ))}
               {sortedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-2 py-8 text-center text-neutral-500">
+                  <td colSpan={8} className="px-2 py-8 text-center text-neutral-500">
                     Nenhuma proposta/condição para comparar.
                   </td>
                 </tr>

@@ -6,6 +6,7 @@ export type AppBannerSlide = {
   title: string | null;
   imageUrl: string;
   linkUrl: string | null;
+  scrollIntervalMs: number;
 };
 
 function parseJsonArray(raw: string | null | undefined): string[] {
@@ -18,16 +19,19 @@ function parseJsonArray(raw: string | null | undefined): string[] {
 }
 
 export async function getLandingBannersForPublic(): Promise<AppBannerSlide[]> {
+  const settings = await prisma.marketingSettings.findUnique({ where: { id: "default" } });
+  const take = settings?.maxActiveBanners ?? 10;
   const banners = await prisma.landingBanner.findMany({
     where: { isActive: true, showOnLanding: true },
     orderBy: { sortOrder: "asc" },
-    take: 10,
+    take,
   });
   return banners.map((item) => ({
     id: item.id,
     title: item.title,
     imageUrl: item.imageUrl,
     linkUrl: item.linkUrl,
+    scrollIntervalMs: item.scrollIntervalMs,
   }));
 }
 
@@ -35,6 +39,8 @@ export async function getAppBannersForSession(input: {
   userId: string;
   organizationType: OrganizationType;
 }): Promise<AppBannerSlide[]> {
+  const settings = await prisma.marketingSettings.findUnique({ where: { id: "default" } });
+  const take = settings?.maxActiveBanners ?? 10;
   const banners = await prisma.landingBanner.findMany({
     where: { isActive: true, showInApp: true },
     orderBy: { sortOrder: "asc" },
@@ -51,11 +57,12 @@ export async function getAppBannersForSession(input: {
     }),
   );
 
-  return filtered.slice(0, 10).map((item) => ({
+  return filtered.slice(0, take).map((item) => ({
     id: item.id,
     title: item.title,
     imageUrl: item.imageUrl,
     linkUrl: item.linkUrl,
+    scrollIntervalMs: item.scrollIntervalMs,
   }));
 }
 

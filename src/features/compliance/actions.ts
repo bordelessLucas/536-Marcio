@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { OrganizationType } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuthorizedSession } from "@/lib/auth/guards";
 import { toPublicErrorMessage } from "@/lib/errors";
@@ -14,6 +15,48 @@ import {
 import { markOverdueCompliance } from "@/features/compliance/expire";
 
 export type ActionResult = { ok: boolean; message?: string };
+
+const reputationSchema = z.object({
+  googleProfileUrl: z.string().url().optional().or(z.literal("")),
+  reclameAquiUrl: z.string().url().optional().or(z.literal("")),
+});
+
+export async function updateReputationLinksAction(formData: FormData): Promise<ActionResult> {
+  try {
+    const session = await requireAuthorizedSession({
+      types: [OrganizationType.fornecedor],
+      href: "/app/compliance",
+    });
+
+    const parsed = reputationSchema.safeParse({
+      googleProfileUrl: String(formData.get("googleProfileUrl") ?? "").trim(),
+      reclameAquiUrl: String(formData.get("reclameAquiUrl") ?? "").trim(),
+    });
+    if (!parsed.success) {
+      return { ok: false, message: "Informe URLs válidas ou deixe em branco." };
+    }
+
+    await prisma.organization.update({
+      where: { id: session.organizationId },
+      data: {
+        googleProfileUrl: parsed.data.googleProfileUrl || null,
+        reclameAquiUrl: parsed.data.reclameAquiUrl || null,
+      },
+    });
+
+    await writeAuditLog({
+      userId: session.userId,
+      action: "compliance.reputation_updated",
+      entityType: "organization",
+      entityId: session.organizationId,
+    });
+
+    revalidatePath("/app/compliance");
+    return { ok: true, message: "Links de reputação salvos." };
+  } catch (error) {
+    return { ok: false, message: toPublicErrorMessage(error) };
+  }
+}
 
 export async function uploadComplianceDocumentAction(
   formData: FormData,
@@ -106,10 +149,10 @@ export async function reviewComplianceDocumentAction(
     const parsed = complianceReviewSchema.safeParse({
       documentId: formData.get("documentId"),
       decision: formData.get("decision"),
-      reviewNotes: formData.get("reviewNotes") || undefined,
+      reviewNotes: String(formData.get("reviewNotes") || "") || undefined,
     });
     if (!parsed.success) {
-      return { ok: false, message: "Dados inválidos" };
+      return { ok: false, message: parsed.error.issues[0]?.message ?? "Dados inválidos" };
     }
 
     const doc = await prisma.complianceDocument.findUnique({
@@ -136,7 +179,21 @@ export async function reviewComplianceDocumentAction(
         payload: JSON.stringify({
           status: updated.status,
           reviewNotes: updated.reviewNotes,
+          message: `Documento ${updated.documentType} marcado como ${updated.status}.`,
         }),
+      },
+    });
+
+    const { notifyAfterDomainEvent } = await import("@/features/notifications/notify-after");
+    await notifyAfterDomainEvent({
+      type: "compliance.updated",
+      entityType: "compliance_document",
+      entityId: updated.id,
+      organizationId: updated.organizationId,
+      payload: {
+        status: updated.status,
+        reviewNotes: updated.reviewNotes,
+        message: `Documento ${updated.documentType} marcado como ${updated.status}.`,
       },
     });
 
@@ -159,12 +216,15 @@ export async function reviewComplianceDocumentAction(
   }
 }
 
-export async function refreshComplianceOverdueAction(): Promise<ActionResult> {
+export async function runComplianceExpireJobAction(): Promise<ActionResult> {
   try {
+    await requireAuthorizedSession({
+      types: [OrganizationType.master_admin],
+      href: "/app/plataforma/compliance",
+    });
     const count = await markOverdueCompliance();
-    revalidatePath("/app/compliance");
     revalidatePath("/app/plataforma/compliance");
-    return { ok: true, message: `${count} documento(s) marcados como em atraso.` };
+    return { ok: true, message: `${count} documento(s) marcados em atraso.` };
   } catch (error) {
     return { ok: false, message: toPublicErrorMessage(error) };
   }

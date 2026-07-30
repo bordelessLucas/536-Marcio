@@ -3,7 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { submitProposalAction } from "@/features/opportunities/actions";
+import {
+  evaluateProposalPriceAction,
+  submitProposalAction,
+} from "@/features/opportunities/actions";
 
 type Props = {
   inviteId: string;
@@ -21,6 +24,7 @@ export function ProposalForm({ inviteId, canSubmit, blockMessage }: Props) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [priceHint, setPriceHint] = useState<string | null>(null);
   const [conditions, setConditions] = useState<ConditionDraft[]>([
     { amount: "", paymentTerms: "" },
     { amount: "", paymentTerms: "" },
@@ -28,6 +32,29 @@ export function ProposalForm({ inviteId, canSubmit, blockMessage }: Props) {
 
   function updateCondition(index: number, patch: Partial<ConditionDraft>) {
     setConditions((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  }
+
+  function evaluatePrice(index: number) {
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.set("inviteId", inviteId);
+      formData.set("amount", conditions[index]?.amount ?? "");
+      const result = await evaluateProposalPriceAction(formData);
+      if (!result.ok) {
+        setPriceHint(null);
+        setError(result.message ?? "Erro ao avaliar");
+        return;
+      }
+      setError(null);
+      if (result.evaluation) {
+        const ev = result.evaluation;
+        setPriceHint(
+          `Condição ${index + 1}: ${ev.percentDelta >= 0 ? "+" : ""}${ev.percentDelta}% vs média (R$ ${(ev.averageCents / 100).toFixed(2)}) — ${ev.position.toUpperCase()} · amostra ${ev.sampleSize} (${ev.source === "quotation" ? "desta cotação" : "histórico do segmento"})`,
+        );
+      } else {
+        setPriceHint(result.message ?? "Sem base de comparação.");
+      }
+    });
   }
 
   if (!canSubmit) {
@@ -77,17 +104,28 @@ export function ProposalForm({ inviteId, canSubmit, blockMessage }: Props) {
             <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
               Condição {index + 1}
             </p>
-            <input
-              name={`amount_${index}`}
-              required
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={condition.amount}
-              onChange={(e) => updateCondition(index, { amount: e.target.value })}
-              placeholder="Valor (R$)"
-              className="h-11 w-full rounded-xl border border-black/10 px-3 text-sm"
-            />
+            <div className="flex flex-wrap gap-2">
+              <input
+                name={`amount_${index}`}
+                required
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={condition.amount}
+                onChange={(e) => updateCondition(index, { amount: e.target.value })}
+                placeholder="Valor (R$)"
+                className="h-11 min-w-[140px] flex-1 rounded-xl border border-black/10 px-3 text-sm"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={pending || !condition.amount}
+                onClick={() => evaluatePrice(index)}
+              >
+                Avaliar preço
+              </Button>
+            </div>
             <input
               name={`paymentTerms_${index}`}
               required
@@ -117,6 +155,9 @@ export function ProposalForm({ inviteId, canSubmit, blockMessage }: Props) {
         ))}
       </div>
 
+      {priceHint ? (
+        <p className="rounded-xl bg-sky-50 px-3 py-2 text-sm text-sky-900">{priceHint}</p>
+      ) : null}
       {error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
       {message ? (
         <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>

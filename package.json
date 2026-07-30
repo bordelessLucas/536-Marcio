@@ -18,7 +18,11 @@
     "smoke:dia-04": "tsx scripts/smoke-dia-04.ts",
     "smoke:dia-05": "tsx scripts/smoke-dia-05.ts",
     "seed:firebase-auth": "tsx scripts/seed-firebase-auth.ts",
-    "jobs:compliance-expire": "tsx scripts/jobs-compliance-expire.ts",
+  "jobs:compliance-expire": "tsx scripts/jobs-compliance-expire.ts",
+  "jobs:reminders": "tsx scripts/jobs-reminders.ts",
+  "sync:firestore": "tsx scripts/sync-firestore.ts",
+    "smoke:dia-06": "tsx scripts/smoke-dia-06.ts",
+    "smoke:cliente-feedback": "tsx scripts/smoke-cliente-feedback.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

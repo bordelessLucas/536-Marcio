@@ -36,13 +36,28 @@ export default async function MeuPlanoPage() {
       prisma.serviceCategory.findMany({
         where: { isActive: true, deletedAt: null },
         orderBy: { sortOrder: "asc" },
-        select: { id: true, name: true },
+        include: {
+          items: {
+            where: { isActive: true, deletedAt: null },
+            orderBy: { sortOrder: "asc" },
+            select: { id: true, name: true, categoryId: true },
+          },
+        },
       }),
       prisma.platformSettings.findUnique({ where: { id: "default" } }),
     ]);
 
     const addonPrice = settings?.categoryAddonPriceCents ?? 2900;
     const availableAddon = catalog.filter((item) => !plan.categoryIds.includes(item.id));
+    const catalogForForm = catalog.map((category) => ({
+      id: category.id,
+      name: category.name,
+      segments: category.items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        categoryId: item.categoryId,
+      })),
+    }));
 
     return (
       <div className="space-y-6">
@@ -59,9 +74,9 @@ export default async function MeuPlanoPage() {
             hint={`Usadas ${plan.franchise.used}${plan.franchise.isUnlimited ? "" : ` de ${plan.franchise.limit}`}`}
           />
           <Stat
-            label="Categorias inclusas"
-            value={String(plan.categoriesIncluded)}
-            hint="Adicionais sob demanda"
+            label="Categorias / segmentos"
+            value={`${plan.categoriesIncluded} / ${plan.segmentsIncluded}`}
+            hint={plan.allowExtraCategoriesFree ? "Liberação piloto ativa" : "Inclusos no plano"}
           />
           <Stat
             label="Valor"
@@ -71,12 +86,23 @@ export default async function MeuPlanoPage() {
         </div>
 
         <div className="rounded-2xl border border-black/5 bg-white/80 p-6">
-          <h2 className="text-lg font-semibold text-neutral-900">Categorias do pacote</h2>
+          <h2 className="text-lg font-semibold text-neutral-900">Categorias e segmentos do pacote</h2>
           <div className="mt-4">
             <SupplierCategoriesForm
-              categories={catalog}
-              selectedIds={plan.categoryIds}
-              maxIncluded={plan.categoriesIncluded}
+              categories={catalogForForm}
+              initialLinks={plan.links
+                .filter((l) => l.serviceItemId)
+                .map((l) => ({
+                  categoryId: l.categoryId,
+                  serviceItemId: l.serviceItemId!,
+                  contactName: l.contactName ?? "",
+                  contactEmail: l.contactEmail ?? "",
+                  contactPhone: l.contactPhone ?? "",
+                }))}
+              maxCategories={plan.categoriesIncluded}
+              maxSegments={plan.segmentsIncluded}
+              isFree={plan.isFree}
+              allowExtraFree={plan.allowExtraCategoriesFree}
             />
           </div>
         </div>

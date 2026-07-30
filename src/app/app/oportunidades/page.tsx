@@ -18,6 +18,7 @@ type PageProps = {
     q?: string;
     status?: string;
     categoryId?: string;
+    yearMonth?: string;
     view?: string;
     inviteId?: string;
   }>;
@@ -55,10 +56,19 @@ export default async function OportunidadesPage({ searchParams }: PageProps) {
   const query = params.q?.trim();
   const statusFilter = params.status?.trim();
   const categoryId = params.categoryId?.trim();
+  const yearMonth = params.yearMonth?.trim();
   const view = params.view === "lista" ? "lista" : "kanban";
   const focusInviteId = params.inviteId?.trim();
 
   await markOverdueCompliance(session.organizationId);
+
+  let periodFilter: { gte?: Date; lt?: Date } | undefined;
+  if (yearMonth && /^\d{4}-\d{2}$/.test(yearMonth)) {
+    const [y, m] = yearMonth.split("-").map(Number);
+    const start = new Date(Date.UTC(y!, m! - 1, 1));
+    const end = new Date(Date.UTC(y!, m!, 1));
+    periodFilter = { gte: start, lt: end };
+  }
 
   const [franchise, overdueDocs, categories, invites] = await Promise.all([
     getSupplierFranchiseBalance(session.organizationId),
@@ -75,6 +85,7 @@ export default async function OportunidadesPage({ searchParams }: PageProps) {
         supplierOrgId: session.organizationId,
         ...(statusFilter ? { status: statusFilter as "pendente" | "aceito" | "declinado" | "expirado" } : {}),
         ...(categoryId ? { quotation: { categoryId } } : {}),
+        ...(periodFilter ? { createdAt: periodFilter } : {}),
         ...(query
           ? {
               OR: [
@@ -130,6 +141,7 @@ export default async function OportunidadesPage({ searchParams }: PageProps) {
       await assertSupplierCanAccessCategory(
         session.organizationId,
         focusInvite.quotation.categoryId,
+        focusInvite.quotation.serviceItemId,
       );
     } catch {
       categoryBlocked = true;
@@ -175,7 +187,7 @@ export default async function OportunidadesPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      <form className="grid gap-2 md:grid-cols-4">
+      <form className="grid gap-2 md:grid-cols-5">
         <input type="hidden" name="view" value={view} />
         <input
           name="q"
@@ -205,6 +217,13 @@ export default async function OportunidadesPage({ searchParams }: PageProps) {
             </option>
           ))}
         </select>
+        <input
+          type="month"
+          name="yearMonth"
+          defaultValue={yearMonth ?? ""}
+          className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+          aria-label="Período (mês/ano)"
+        />
         <button type="submit" className="h-11 rounded-xl bg-black/[0.04] px-4 text-sm font-semibold">
           Filtrar
         </button>

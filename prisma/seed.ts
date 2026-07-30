@@ -70,6 +70,8 @@ async function main() {
     update: {
       freeQuotaSolicitante: 15,
       freeQuotaFornecedor: 1,
+      supplierProQuota: 30,
+      supplierPremiumQuota: 100,
       reminderDaysJson: "[5,10]",
       partnershipLockEnabled: true,
       categoryAddonPriceCents: 2900,
@@ -78,6 +80,8 @@ async function main() {
       id: "default",
       freeQuotaSolicitante: 15,
       freeQuotaFornecedor: 1,
+      supplierProQuota: 30,
+      supplierPremiumQuota: 100,
       reminderDaysJson: "[5,10]",
       partnershipLockEnabled: true,
       categoryAddonPriceCents: 2900,
@@ -382,20 +386,21 @@ async function main() {
 
   const segurosCategory = await prisma.serviceCategory.findUnique({
     where: { slug: "seguros" },
+    include: { items: { where: { deletedAt: null }, orderBy: { sortOrder: "asc" }, take: 1 } },
   });
-  if (segurosCategory) {
-    await prisma.organizationCategory.upsert({
-      where: {
-        organizationId_categoryId: {
-          organizationId: fornecedorOrg.id,
-          categoryId: segurosCategory.id,
-        },
-      },
-      update: { isIncluded: true },
-      create: {
+  const segurosSegment = segurosCategory?.items[0];
+  if (segurosCategory && segurosSegment) {
+    await prisma.organizationCategory.deleteMany({
+      where: { organizationId: fornecedorOrg.id, categoryId: segurosCategory.id },
+    });
+    await prisma.organizationCategory.create({
+      data: {
         organizationId: fornecedorOrg.id,
         categoryId: segurosCategory.id,
+        serviceItemId: segurosSegment.id,
         isIncluded: true,
+        contactName: "Comercial Seguros Demo",
+        contactEmail: "fornecedor@demo.cotacondo.com.br",
       },
     });
   }
@@ -425,14 +430,18 @@ async function main() {
   await ensureActiveSubscription(fornecedorPro.id, "fornecedor-pro");
   await ensureActiveSubscription(fornecedorPending.id, "fornecedor-pro");
 
-  if (segurosCategory) {
+  if (segurosCategory && segurosSegment) {
     for (const orgId of [fornecedorPro.id, fornecedorPending.id]) {
-      await prisma.organizationCategory.upsert({
-        where: {
-          organizationId_categoryId: { organizationId: orgId, categoryId: segurosCategory.id },
+      await prisma.organizationCategory.deleteMany({
+        where: { organizationId: orgId, categoryId: segurosCategory.id },
+      });
+      await prisma.organizationCategory.create({
+        data: {
+          organizationId: orgId,
+          categoryId: segurosCategory.id,
+          serviceItemId: segurosSegment.id,
+          isIncluded: true,
         },
-        update: { isIncluded: true },
-        create: { organizationId: orgId, categoryId: segurosCategory.id, isIncluded: true },
       });
     }
 

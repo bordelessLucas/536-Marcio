@@ -60,6 +60,35 @@ export default async function BannersAdminPage() {
               className="mt-1 h-10 w-full rounded-xl border border-black/10 px-3"
             />
           </label>
+          <label className="text-sm md:col-span-2">
+            Scripts de pixel (HTML/JS)
+            <textarea
+              name="pixelScripts"
+              rows={3}
+              defaultValue={settings?.pixelScripts ?? ""}
+              className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 font-mono text-xs"
+            />
+          </label>
+          <label className="text-sm">
+            Host LP Fornecedores
+            <input
+              name="supplierLpHost"
+              defaultValue={settings?.supplierLpHost ?? ""}
+              placeholder="https://fornecedores.exemplo.com"
+              className="mt-1 h-10 w-full rounded-xl border border-black/10 px-3"
+            />
+          </label>
+          <label className="text-sm">
+            Máx. banners ativos
+            <input
+              name="maxActiveBanners"
+              type="number"
+              min={1}
+              max={20}
+              defaultValue={settings?.maxActiveBanners ?? 10}
+              className="mt-1 h-10 w-full rounded-xl border border-black/10 px-3"
+            />
+          </label>
           <Button type="submit">Salvar links</Button>
         </form>
       </div>
@@ -90,6 +119,17 @@ export default async function BannersAdminPage() {
               name="sortOrder"
               type="number"
               defaultValue={banners.length + 1}
+              className="mt-1 h-10 w-full rounded-xl border border-black/10 px-3"
+            />
+          </label>
+          <label className="text-sm">
+            Intervalo rolagem (ms)
+            <input
+              name="scrollIntervalMs"
+              type="number"
+              min={2000}
+              max={60000}
+              defaultValue={5500}
               className="mt-1 h-10 w-full rounded-xl border border-black/10 px-3"
             />
           </label>

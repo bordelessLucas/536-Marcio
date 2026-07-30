@@ -18,9 +18,10 @@ export default async function CatalogPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-[#9333EA]">Catálogo</p>
-          <h1 className="mt-1 text-3xl font-bold text-neutral-900">Categorias e serviços</h1>
+          <h1 className="mt-1 text-3xl font-bold text-neutral-900">Categorias e segmentos</h1>
           <p className="mt-2 text-neutral-600">
-            {categories.length} categorias ativas · seed oficial 13×110
+            Clique em Abrir na categoria mãe para gerenciar os segmentos (filhos). {categories.length}{" "}
+            categorias · seed oficial 13×110
           </p>
         </div>
       </div>
@@ -32,7 +33,7 @@ export default async function CatalogPage() {
               <tr>
                 <th className="px-4 py-3 font-medium">Categoria</th>
                 <th className="px-4 py-3 font-medium">Cor</th>
-                <th className="px-4 py-3 font-medium">Serviços</th>
+                <th className="px-4 py-3 font-medium">Segmentos</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium" />
               </tr>

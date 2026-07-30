@@ -56,6 +56,7 @@ model User {
   referrals            User[]    @relation("UserReferrals")
   referralRewards      ReferralReward[] @relation("ReferralReferrer")
   referredRewards      ReferralReward[] @relation("ReferralReferred")
+  notifications        Notification[]
 }
 
 enum QuotationStatus {
@@ -76,12 +77,14 @@ enum QuotationUrgency {
 }
 
 model Organization {
-  id        String           @id @default(cuid())
-  name      String
-  document  String?
-  type      OrganizationType
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id               String           @id @default(cuid())
+  name             String
+  document         String?
+  type             OrganizationType
+  googleProfileUrl String?
+  reclameAquiUrl   String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   members              OrganizationMember[]
   subscriptions        Subscription[]
@@ -209,19 +212,26 @@ model OrganizationCategory {
   id             String   @id @default(cuid())
   organizationId String
   categoryId     String
+  /// Segmento (ServiceItem). Obrigatório em novos vínculos; legado pode ser null até reseed.
+  serviceItemId  String?
+  contactName    String?
+  contactEmail   String?
+  contactPhone   String?
   isIncluded     Boolean  @default(true)
   isAddon        Boolean  @default(false)
   unitPriceCents Int?
   checkoutId     String?
   createdAt      DateTime @default(now())
 
-  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  category     ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category     ServiceCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  serviceItem  ServiceItem?     @relation(fields: [serviceItemId], references: [id], onDelete: Cascade)
   checkout     PaymentCheckout? @relation(fields: [checkoutId], references: [id], onDelete: SetNull)
 
-  @@unique([organizationId, categoryId])
+  @@unique([organizationId, categoryId, serviceItemId])
   @@index([organizationId])
   @@index([categoryId])
+  @@index([serviceItemId])
 }
 
 enum ComplianceStatus {
@@ -294,14 +304,15 @@ model QuotationInvite {
 }
 
 model Proposal {
-  id             String         @id @default(cuid())
-  inviteId       String         @unique
-  organizationId String
-  quotationId    String
-  status         ProposalStatus @default(enviada)
+  id              String         @id @default(cuid())
+  inviteId        String         @unique
+  organizationId  String
+  quotationId     String
+  status          ProposalStatus @default(enviada)
   createdByUserId String
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  metadataJson    String         @default("{}")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   invite       QuotationInvite    @relation(fields: [inviteId], references: [id], onDelete: Cascade)
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -349,6 +360,7 @@ model ProposalCondition {
   amountCents   Int
   paymentTerms  String
   sortOrder     Int      @default(0)
+  metadataJson  String   @default("{}")
   createdAt     DateTime @default(now())
 
   proposal    Proposal                     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
@@ -384,8 +396,9 @@ model ServiceItem {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  category   ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  quotations Quotation[]
+  category           ServiceCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  quotations         Quotation[]
+  organizationLinks  OrganizationCategory[]
 
   @@unique([categoryId, slug])
   @@index([categoryId])
@@ -508,6 +521,7 @@ model LandingBanner {
   isActive             Boolean            @default(true)
   showOnLanding        Boolean            @default(true)
   showInApp            Boolean            @default(true)
+  scrollIntervalMs     Int                @default(5500)
   audienceMode         BannerAudienceMode @default(all)
   targetProfilesJson   String             @default("[]")
   targetUserIdsJson    String             @default("[]")
@@ -516,22 +530,70 @@ model LandingBanner {
 }
 
 model MarketingSettings {
-  id             String   @id @default("default")
-  whatsappUrl    String?
-  blogUrl        String?
-  pixelScripts   String?
-  supplierLpHost String?
-  updatedAt      DateTime @updatedAt
+  id              String   @id @default("default")
+  whatsappUrl     String?
+  blogUrl         String?
+  pixelScripts    String?
+  supplierLpHost  String?
+  maxActiveBanners Int     @default(10)
+  updatedAt       DateTime @updatedAt
 }
 
 model PlatformSettings {
   id                      String   @id @default("default")
   freeQuotaSolicitante    Int      @default(15)
   freeQuotaFornecedor     Int      @default(1)
+  supplierProQuota        Int      @default(30)
+  supplierPremiumQuota    Int      @default(100)
   reminderDaysJson        String   @default("[5,10]")
   partnershipLockEnabled  Boolean  @default(true)
   categoryAddonPriceCents Int      @default(2900)
   updatedAt               DateTime @updatedAt
+}
+
+model Notification {
+  id             String    @id @default(cuid())
+  userId         String
+  organizationId String?
+  type           String
+  title          String
+  body           String
+  href           String?
+  metadataJson   String?
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([type])
+}
+
+model EmailOutbox {
+  id           String    @id @default(cuid())
+  toEmail      String
+  subject      String
+  bodyText     String
+  template     String
+  status       String    @default("queued")
+  metadataJson String?
+  sentAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([status])
+  @@index([template])
+  @@index([toEmail])
+}
+
+model ReminderDispatch {
+  id        String   @id @default(cuid())
+  dedupeKey String   @unique
+  kind      String
+  entityId  String
+  createdAt DateTime @default(now())
+
+  @@index([kind, entityId])
 }
 
 enum CheckoutKind {

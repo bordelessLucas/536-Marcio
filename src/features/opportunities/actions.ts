@@ -109,11 +109,12 @@ export async function acceptInviteAction(formData: FormData): Promise<ActionResu
       await assertSupplierCanAccessCategory(
         session.organizationId,
         invite.quotation.categoryId,
+        invite.quotation.serviceItemId,
       );
     } catch {
       return {
         ok: false,
-        message: "Categoria fora do seu pacote. Ajuste em Meu Plano ou faça upgrade.",
+        message: "Categoria/segmento fora do seu pacote. Ajuste em Meu Plano ou faça upgrade.",
       };
     }
 
@@ -199,11 +200,12 @@ export async function submitProposalAction(formData: FormData): Promise<ActionRe
       await assertSupplierCanAccessCategory(
         session.organizationId,
         invite.quotation.categoryId,
+        invite.quotation.serviceItemId,
       );
     } catch {
       return {
         ok: false,
-        message: "Categoria fora do seu pacote. Ajuste em Meu Plano ou faça upgrade.",
+        message: "Categoria/segmento fora do seu pacote. Ajuste em Meu Plano ou faça upgrade.",
       };
     }
 
@@ -298,6 +300,18 @@ export async function submitProposalAction(formData: FormData): Promise<ActionRe
       return created;
     });
 
+    const { notifyAfterDomainEvent } = await import("@/features/notifications/notify-after");
+    await notifyAfterDomainEvent({
+      type: "proposal.submitted",
+      entityType: "proposal",
+      entityId: proposal.id,
+      organizationId: session.organizationId,
+      payload: {
+        quotationId: invite.quotationId,
+        conditions: parsed.data.conditions.length,
+      },
+    });
+
     const {
       emitMinProposalsIfReached,
       pauseQuotationInvitesIfMaxReached,
@@ -330,6 +344,86 @@ export async function submitProposalAction(formData: FormData): Promise<ActionRe
         message: "Esta cotação atingiu o máximo de propostas e não recebe mais envios.",
       };
     }
+    return { ok: false, message: toPublicErrorMessage(error) };
+  }
+}
+
+export type EvaluatePriceResult = ActionResult & {
+  evaluation?: {
+    proposedCents: number;
+    averageCents: number;
+    percentDelta: number;
+    position: "acima" | "abaixo" | "dentro";
+    sampleSize: number;
+    source: "quotation" | "service_history";
+  };
+};
+
+export async function evaluateProposalPriceAction(
+  formData: FormData,
+): Promise<EvaluatePriceResult> {
+  try {
+    const session = await requireSupplier();
+    const inviteId = String(formData.get("inviteId") ?? "");
+    const amount = Number(formData.get("amount"));
+    if (!inviteId || !Number.isFinite(amount) || amount <= 0) {
+      return { ok: false, message: "Informe o valor da condição para avaliar." };
+    }
+    const proposedCents = Math.round(amount * 100);
+
+    const invite = await prisma.quotationInvite.findFirst({
+      where: { id: inviteId, supplierOrgId: session.organizationId },
+      include: { quotation: true },
+    });
+    if (!invite) return { ok: false, message: "Convite não encontrado." };
+
+    const { evaluatePriceAgainstAverage } = await import("@/features/opportunities/analysis");
+
+    const sameQuotation = await prisma.proposalCondition.findMany({
+      where: {
+        proposal: {
+          quotationId: invite.quotationId,
+          status: { not: "recusada" },
+        },
+      },
+      select: { amountCents: true },
+    });
+    let samples = sameQuotation.map((c) => c.amountCents);
+    let source: "quotation" | "service_history" = "quotation";
+
+    if (samples.length < 2) {
+      const history = await prisma.proposalCondition.findMany({
+        where: {
+          proposal: {
+            quotation: { serviceItemId: invite.quotation.serviceItemId },
+            status: { in: ["enviada", "em_negociacao", "aprovada"] },
+          },
+        },
+        select: { amountCents: true },
+        take: 50,
+        orderBy: { createdAt: "desc" },
+      });
+      samples = history.map((c) => c.amountCents);
+      source = "service_history";
+    }
+
+    const evaluated = evaluatePriceAgainstAverage(proposedCents, samples);
+    if (!evaluated) {
+      return {
+        ok: true,
+        message: "Ainda não há base suficiente para calcular a média deste serviço.",
+      };
+    }
+
+    return {
+      ok: true,
+      message:
+        evaluated.position === "dentro"
+          ? `Dentro da média (±5%). Média ${evaluated.averageCents / 100}`
+          : `${evaluated.percentDelta > 0 ? "Acima" : "Abaixo"} da média em ${Math.abs(evaluated.percentDelta)}%. Média R$ ${(evaluated.averageCents / 100).toFixed(2)}`,
+      evaluation: { ...evaluated, source },
+    };
+  } catch (error) {
     return { ok: false, message: toPublicErrorMessage(error) };
   }
 }

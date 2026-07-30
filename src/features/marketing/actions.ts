@@ -14,6 +14,7 @@ const bannerSchema = z.object({
   imageUrl: z.string().min(1),
   linkUrl: z.string().optional(),
   sortOrder: z.coerce.number().int().min(0).max(99),
+  scrollIntervalMs: z.coerce.number().int().min(2000).max(60000),
   isActive: z.boolean(),
   showOnLanding: z.boolean(),
   showInApp: z.boolean(),
@@ -30,6 +31,8 @@ export async function upsertBannerAction(formData: FormData): Promise<ActionResu
     });
 
     const id = String(formData.get("id") || "") || undefined;
+    const settings = await prisma.marketingSettings.findUnique({ where: { id: "default" } });
+    const maxActive = settings?.maxActiveBanners ?? 10;
     const activeCount = await prisma.landingBanner.count({ where: { isActive: true } });
     const profiles = formData.getAll("targetProfiles").map(String).filter(Boolean);
     const parsed = bannerSchema.safeParse({
@@ -37,6 +40,7 @@ export async function upsertBannerAction(formData: FormData): Promise<ActionResu
       imageUrl: formData.get("imageUrl"),
       linkUrl: String(formData.get("linkUrl") || "") || undefined,
       sortOrder: formData.get("sortOrder") || 0,
+      scrollIntervalMs: formData.get("scrollIntervalMs") || 5500,
       isActive: formData.get("isActive") === "on" || formData.get("isActive") === "true",
       showOnLanding:
         formData.get("showOnLanding") === "on" || formData.get("showOnLanding") === "true",
@@ -49,8 +53,8 @@ export async function upsertBannerAction(formData: FormData): Promise<ActionResu
       return { ok: false, message: parsed.error.issues[0]?.message ?? "Dados inválidos" };
     }
 
-    if (!id && parsed.data.isActive && activeCount >= 10) {
-      return { ok: false, message: "Máximo de 10 banners ativos." };
+    if (!id && parsed.data.isActive && activeCount >= maxActive) {
+      return { ok: false, message: `Máximo de ${maxActive} banners ativos.` };
     }
 
     const userIds = parsed.data.targetUserIds
@@ -65,6 +69,7 @@ export async function upsertBannerAction(formData: FormData): Promise<ActionResu
       imageUrl: parsed.data.imageUrl,
       linkUrl: parsed.data.linkUrl || null,
       sortOrder: parsed.data.sortOrder,
+      scrollIntervalMs: parsed.data.scrollIntervalMs,
       isActive: parsed.data.isActive,
       showOnLanding: parsed.data.showOnLanding,
       showInApp: parsed.data.showInApp,
@@ -115,11 +120,24 @@ export async function updateMarketingLinksAction(formData: FormData): Promise<Ac
 
     const whatsappUrl = String(formData.get("whatsappUrl") ?? "").trim() || null;
     const blogUrl = String(formData.get("blogUrl") ?? "").trim() || null;
+    const pixelScripts = String(formData.get("pixelScripts") ?? "").trim() || null;
+    const supplierLpHost = String(formData.get("supplierLpHost") ?? "").trim() || null;
+    const maxActiveBanners = Math.min(
+      20,
+      Math.max(1, Number(formData.get("maxActiveBanners") || 10)),
+    );
 
     await prisma.marketingSettings.upsert({
       where: { id: "default" },
-      update: { whatsappUrl, blogUrl },
-      create: { id: "default", whatsappUrl, blogUrl },
+      update: { whatsappUrl, blogUrl, pixelScripts, supplierLpHost, maxActiveBanners },
+      create: {
+        id: "default",
+        whatsappUrl,
+        blogUrl,
+        pixelScripts,
+        supplierLpHost,
+        maxActiveBanners,
+      },
     });
 
     revalidatePath("/");

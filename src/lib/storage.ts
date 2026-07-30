@@ -18,7 +18,6 @@ async function storeFile(objectPath: string, file: File): Promise<StoredFile> {
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const safeName = file.name.replace(/[^\w.\-()\s]/g, "_");
 
   if (isFirebaseAdminConfigured()) {
     const bucket = getAdminStorage().bucket();

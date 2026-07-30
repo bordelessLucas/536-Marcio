@@ -6,10 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { requireAuthorizedSession } from "@/lib/auth/guards";
 import { toPublicErrorMessage } from "@/lib/errors";
 import { writeAuditLog } from "@/lib/audit";
-import { selectCategoriesSchema } from "@/features/supplier/schemas";
+import { selectCategorySegmentsSchema } from "@/features/supplier/schemas";
 import { getSupplierPlanInfo } from "@/features/supplier/franchise";
 
-export type ActionResult = { ok: boolean; message?: string };
+export type ActionResult = { ok: boolean; message?: string; upgradeRequired?: boolean };
 
 export async function updateSupplierCategoriesAction(
   formData: FormData,
@@ -20,29 +20,52 @@ export async function updateSupplierCategoriesAction(
       href: "/app/meu-plano",
     });
 
-    const rawIds = formData.getAll("categoryIds").map(String).filter(Boolean);
-    const parsed = selectCategoriesSchema.safeParse({ categoryIds: rawIds });
+    const rawPairs = formData.getAll("pairs").map(String).filter(Boolean);
+    const links = rawPairs.map((pair) => {
+      const [categoryId, serviceItemId] = pair.split(":");
+      return {
+        categoryId: categoryId ?? "",
+        serviceItemId: serviceItemId ?? "",
+        contactName: String(formData.get(`contactName:${pair}`) || "") || undefined,
+        contactEmail: String(formData.get(`contactEmail:${pair}`) || "") || undefined,
+        contactPhone: String(formData.get(`contactPhone:${pair}`) || "") || undefined,
+      };
+    });
+
+    const parsed = selectCategorySegmentsSchema.safeParse({ links });
     if (!parsed.success) {
       return { ok: false, message: parsed.error.issues[0]?.message ?? "Dados inválidos" };
     }
 
     const plan = await getSupplierPlanInfo(session.organizationId);
-    if (parsed.data.categoryIds.length > plan.categoriesIncluded) {
+    const uniqueCategories = new Set(parsed.data.links.map((l) => l.categoryId));
+    const uniqueSegments = new Set(parsed.data.links.map((l) => l.serviceItemId));
+
+    if (
+      uniqueCategories.size > plan.categoriesIncluded ||
+      uniqueSegments.size > plan.segmentsIncluded
+    ) {
       return {
         ok: false,
-        message: `Seu plano permite até ${plan.categoriesIncluded} categoria(s). Faça upgrade para adicionar mais.`,
+        upgradeRequired: true,
+        message: plan.isFree
+          ? "Plano Free contempla apenas 1 categoria e 1 segmento. Faça upgrade ou solicite liberação ao gestor."
+          : `Seu plano permite até ${plan.categoriesIncluded} categoria(s) e ${plan.segmentsIncluded} segmento(s).`,
       };
     }
 
-    const categories = await prisma.serviceCategory.findMany({
-      where: {
-        id: { in: parsed.data.categoryIds },
-        isActive: true,
-        deletedAt: null,
-      },
-    });
-    if (categories.length !== parsed.data.categoryIds.length) {
-      return { ok: false, message: "Uma ou mais categorias são inválidas." };
+    for (const link of parsed.data.links) {
+      const item = await prisma.serviceItem.findFirst({
+        where: {
+          id: link.serviceItemId,
+          categoryId: link.categoryId,
+          isActive: true,
+          deletedAt: null,
+        },
+      });
+      if (!item) {
+        return { ok: false, message: "Segmento inválido para a categoria selecionada." };
+      }
     }
 
     await prisma.$transaction(async (tx) => {
@@ -50,9 +73,13 @@ export async function updateSupplierCategoriesAction(
         where: { organizationId: session.organizationId },
       });
       await tx.organizationCategory.createMany({
-        data: parsed.data.categoryIds.map((categoryId) => ({
+        data: parsed.data.links.map((link) => ({
           organizationId: session.organizationId,
-          categoryId,
+          categoryId: link.categoryId,
+          serviceItemId: link.serviceItemId,
+          contactName: link.contactName ?? null,
+          contactEmail: link.contactEmail ?? null,
+          contactPhone: link.contactPhone ?? null,
           isIncluded: true,
         })),
       });
@@ -63,12 +90,12 @@ export async function updateSupplierCategoriesAction(
       action: "supplier.categories.updated",
       entityType: "organization",
       entityId: session.organizationId,
-      metadata: { categoryIds: parsed.data.categoryIds },
+      metadata: { links: parsed.data.links },
     });
 
     revalidatePath("/app/meu-plano");
     revalidatePath("/app");
-    return { ok: true, message: "Categorias do plano atualizadas." };
+    return { ok: true, message: "Categorias e segmentos atualizados." };
   } catch (error) {
     return { ok: false, message: toPublicErrorMessage(error) };
   }

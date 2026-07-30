@@ -78,7 +78,7 @@ export function NewQuotationForm({ condominiums, categories, services, canCreate
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-sm font-medium">Categoria</label>
+          <label className="mb-1 block text-sm font-medium">Categoria (mãe)</label>
           <select
             name="categoryId"
             required
@@ -98,7 +98,7 @@ export function NewQuotationForm({ condominiums, categories, services, canCreate
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">Serviço</label>
+          <label className="mb-1 block text-sm font-medium">Segmento</label>
           <select
             name="serviceItemId"
             required
