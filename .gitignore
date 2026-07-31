@@ -48,9 +48,6 @@ next-env.d.ts
 # uploads locais (fallback sem Firebase Admin)
 /uploads/
 
-# documentação interna / planejamento (não versionar)
-/doc/
-
 # firebase
 firebase-debug.log
 firebase-debug.*.log
