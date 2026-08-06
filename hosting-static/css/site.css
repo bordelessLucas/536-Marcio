@@ -97,8 +97,14 @@ img {
 }
 
 .logo {
-  height: 2rem;
+  height: 2.75rem;
   width: auto;
+}
+
+@media (min-width: 768px) {
+  .logo {
+    height: 3rem;
+  }
 }
 
 .nav {
@@ -444,18 +450,18 @@ img {
 
 .banners__slide {
   min-width: 100%;
-  aspect-ratio: 16 / 6;
+  aspect-ratio: 16 / 4;
   background-size: cover;
   background-position: center;
   display: flex;
   align-items: flex-end;
-  padding: 1.5rem;
+  padding: 1.25rem 1.5rem;
 }
 
 .banners__slide h3 {
   margin: 0;
   color: #fff;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
 }
 
@@ -513,6 +519,20 @@ img {
   .plans {
     grid-template-columns: repeat(3, 1fr);
   }
+
+  .plans.plans--4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .plans.plans--4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.price--consult {
+  font-size: 1.75rem !important;
 }
 
 .plan {
