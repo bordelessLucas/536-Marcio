@@ -7,26 +7,57 @@ import { PlansSection, type PlanCard } from "@/components/marketing/PlansSection
 import { WhatsAppCta } from "@/components/marketing/WhatsAppCta";
 import { PublicFooter } from "@/components/marketing/PublicFooter";
 
-function solicitanteFeatures(slug: string): string[] {
-  switch (slug) {
-    case "sindico-free":
-      return ["15 cotações/mês", "Comparativo na plataforma", "Negociar e aprovar online"];
-    case "sindico-pago":
-      return ["50 cotações/mês", "Whitelabel no comparativo", "Prioridade de suporte"];
-    case "adm-free":
-      return ["15 cotações/mês", "Multi-condomínios", "Equipe operacional"];
-    case "adm-pago":
-      return ["80 cotações/mês", "Whitelabel", "Ideal para migração Síndico→Adm"];
-    case "adm-premium":
-      return [
-        "Cotações ilimitadas",
-        "Favoritos + parcerias",
-        "Comissionamento e SLA",
-      ];
-    default:
-      return ["Plataforma CotaCondo"];
+const FREE_FEATURES = [
+  "Até 15 cotações/mês",
+  "Comparativo na plataforma",
+  "Negociar e aprovar online",
+] as const;
+
+const BASIC_FEATURES = [
+  ...FREE_FEATURES,
+  "Whitelabel no comparativo",
+  "Consulte Adicionais",
+] as const;
+
+const PREMIUM_FEATURES = [
+  ...BASIC_FEATURES,
+  "Gestão de Parcerias",
+  "SLA de solicitações",
+  "Gestão do processo",
+] as const;
+
+const DISPLAY: Record<
+  string,
+  {
+    name: string;
+    description: string;
+    priceCents: number;
+    monthlyQuota: number | null;
+    features: string[];
   }
-}
+> = {
+  "sindico-free": {
+    name: "Cota Free",
+    description: "Até 15 cotações para começar com governança.",
+    priceCents: 0,
+    monthlyQuota: 15,
+    features: [...FREE_FEATURES],
+  },
+  "sindico-pago": {
+    name: "Cota Basic",
+    description: "Escala a operação com os recursos do Free e adicionais.",
+    priceCents: 39990,
+    monthlyQuota: 50,
+    features: [...BASIC_FEATURES],
+  },
+  "adm-premium": {
+    name: "Cota Premium",
+    description: "Operação completa de administradora com gestão de ponta a ponta.",
+    priceCents: 68990,
+    monthlyQuota: null,
+    features: [...PREMIUM_FEATURES],
+  },
+};
 
 export default async function HomePage() {
   const [marketing, banners, plans] = await Promise.all([
@@ -39,18 +70,20 @@ export default async function HomePage() {
     .filter((plan) =>
       ["sindico-free", "sindico-pago", "adm-premium"].includes(plan.slug),
     )
-    .map((plan) => ({
-      slug: plan.slug,
-      name: plan.name,
-      description: plan.description,
-      priceCents: plan.priceCents,
-      isFree: plan.isFree,
-      monthlyQuota: plan.monthlyQuota,
-      features: solicitanteFeatures(plan.slug),
-      recommended: plan.slug === "adm-premium",
-    }));
+    .map((plan) => {
+      const display = DISPLAY[plan.slug];
+      return {
+        slug: plan.slug,
+        name: display?.name ?? plan.name,
+        description: display?.description ?? plan.description,
+        priceCents: display?.priceCents ?? plan.priceCents,
+        isFree: plan.isFree,
+        monthlyQuota: display?.monthlyQuota ?? plan.monthlyQuota,
+        features: display?.features ?? ["Plataforma CotaCondo"],
+        recommended: plan.slug === "adm-premium",
+      };
+    });
 
-  // Garante ordem Free / Pago / Premium na home
   const order = ["sindico-free", "sindico-pago", "adm-premium"];
   planCards.sort((a, b) => order.indexOf(a.slug) - order.indexOf(b.slug));
 
@@ -68,8 +101,8 @@ export default async function HomePage() {
           }))}
         />
         <PlansSection
-          title="Escolha o plano do solicitante"
-          subtitle="Free para começar. Pago e Premium para escala, whitelabel e operação de administradora."
+          title="Escolha um plano e otimize a sua operação de compras."
+          subtitle="Com os planos CotaCondo você ganha tempo, mais segurança e gestão de ponta a ponta na administradora."
           plans={planCards}
           audience="solicitante"
         />

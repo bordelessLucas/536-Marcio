@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { togglePartnershipLockAction } from "@/features/partnerships/actions";
 import { reviewMigrationAction } from "@/features/migration/actions";
 import {
+  createCustomBillingCheckoutAction,
   deletePlanOverrideAction,
   updatePlatformSettingsAction,
   upsertPlanOverrideAction,
@@ -238,6 +239,66 @@ export default async function Page() {
             ))
           )}
         </ul>
+      </div>
+
+      <div className="rounded-2xl border border-black/5 bg-white/80 p-5">
+        <h2 className="font-semibold">Faturar adicional / plano personalizado (VIP)</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          Gera checkout automático com valor livre (banner patrocinado, campanhas etc.) sem alterar
+          features do produto.
+        </p>
+        <form
+          action={formAction(createCustomBillingCheckoutAction)}
+          className="mt-4 grid gap-3 md:grid-cols-3"
+        >
+          <label className="text-sm md:col-span-2">
+            Organização
+            <select
+              name="organizationId"
+              required
+              className="mt-1 h-10 w-full rounded-xl border border-black/10 px-3"
+            >
+              <option value="">Selecione</option>
+              {orgs.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {org.name} ({org.type})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm">
+            Valor (R$)
+            <input
+              name="amountReais"
+              type="number"
+              min={1}
+              step="0.01"
+              required
+              placeholder="ex.: 1500"
+              className="mt-1 h-10 w-full rounded-xl border border-black/10 px-3"
+            />
+          </label>
+          <label className="text-sm md:col-span-2">
+            Descrição do adicional
+            <input
+              name="description"
+              required
+              placeholder="ex.: Banner Patrocinado — Abril"
+              className="mt-1 h-10 w-full rounded-xl border border-black/10 px-3"
+            />
+          </label>
+          <label className="text-sm">
+            Plano de referência
+            <select name="planSlug" className="mt-1 h-10 w-full rounded-xl border border-black/10 px-3">
+              <option value="fornecedor-vip">Plano VIP</option>
+              <option value="fornecedor-premium">Condo Premium</option>
+              <option value="fornecedor-pro">Condo Basic</option>
+            </select>
+          </label>
+          <Button type="submit" className="md:col-span-3">
+            Gerar checkout
+          </Button>
+        </form>
       </div>
 
       <div className="rounded-2xl border border-black/5 bg-white/80 p-5">

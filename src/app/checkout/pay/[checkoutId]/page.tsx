@@ -44,7 +44,18 @@ export default async function SandboxPayPage({ params }: PageProps) {
               {checkout.plan?.name ??
                 (checkout.kind === "category_addon"
                   ? `Categorias adicionais × ${checkout.quantity}`
-                  : checkout.kind)}
+                  : checkout.kind === "custom"
+                    ? (() => {
+                        try {
+                          const meta = JSON.parse(checkout.metadataJson || "{}") as {
+                            description?: string;
+                          };
+                          return meta.description || "Cobrança personalizada";
+                        } catch {
+                          return "Cobrança personalizada";
+                        }
+                      })()
+                    : checkout.kind)}
             </p>
             <p>
               <span className="text-neutral-400">Valor:</span>{" "}

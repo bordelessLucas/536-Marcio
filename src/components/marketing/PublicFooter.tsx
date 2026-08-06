@@ -5,18 +5,20 @@ import { Container } from "@/components/ui/Container";
 type PublicFooterProps = {
   blogUrl: string;
   whatsappUrl: string;
+  description?: string;
 };
 
-export function PublicFooter({ blogUrl, whatsappUrl }: PublicFooterProps) {
+export function PublicFooter({
+  blogUrl,
+  whatsappUrl,
+  description = "Facilitamos processos de compras unindo administradoras e síndicos com fornecedores qualificados.",
+}: PublicFooterProps) {
   return (
     <footer className="border-t border-black/5 bg-white/70 py-12">
       <Container className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <Logo className="h-8" />
-          <p className="mt-4 max-w-sm text-sm text-[#6B7280]">
-            Plataforma de cotações para condomínios — solicitantes e fornecedores em um fluxo 100%
-            digital.
-          </p>
+          <Logo className="h-10" />
+          <p className="mt-4 max-w-sm text-sm text-[#6B7280]">{description}</p>
         </div>
         <div className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-3">
           <div>

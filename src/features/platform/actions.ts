@@ -169,3 +169,43 @@ export async function deletePlanOverrideAction(formData: FormData): Promise<Acti
     return { ok: false, message: toPublicErrorMessage(error) };
   }
 }
+
+export async function createCustomBillingCheckoutAction(
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const session = await requireAuthorizedSession({
+      types: [OrganizationType.master_admin],
+      href: "/app/plataforma",
+    });
+
+    const organizationId = String(formData.get("organizationId") ?? "");
+    const description = String(formData.get("description") ?? "").trim();
+    const amountReais = Number(String(formData.get("amountReais") ?? "").replace(",", "."));
+    const planSlugRaw = String(formData.get("planSlug") ?? "").trim();
+    const planSlug = planSlugRaw || "fornecedor-vip";
+
+    if (!organizationId) return { ok: false, message: "Selecione a organização." };
+    if (!description) return { ok: false, message: "Informe a descrição do adicional." };
+    if (!Number.isFinite(amountReais) || amountReais <= 0) {
+      return { ok: false, message: "Informe um valor válido em reais." };
+    }
+
+    const { createCustomBillingCheckout } = await import("@/features/billing/subscriptions");
+    const result = await createCustomBillingCheckout({
+      organizationId,
+      userId: session.userId,
+      amountCents: Math.round(amountReais * 100),
+      description,
+      planSlug,
+    });
+
+    revalidatePath("/app/plataforma");
+    return {
+      ok: true,
+      message: `Checkout criado: ${result.checkoutUrl}`,
+    };
+  } catch (error) {
+    return { ok: false, message: toPublicErrorMessage(error) };
+  }
+}

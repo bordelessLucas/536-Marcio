@@ -600,6 +600,7 @@ enum CheckoutKind {
   plan
   category_addon
   migration
+  custom
 }
 
 enum CheckoutStatus {

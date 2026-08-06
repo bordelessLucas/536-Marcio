@@ -13,6 +13,11 @@ export type PlanCard = {
   monthlyQuota: number | null;
   features: string[];
   recommended?: boolean;
+  /** CTA especial (ex.: VIP / consultoria) */
+  ctaLabel?: string;
+  ctaHref?: string;
+  hideQuota?: boolean;
+  consultPrice?: boolean;
 };
 
 type PlansSectionProps = {
@@ -24,6 +29,11 @@ type PlansSectionProps = {
 };
 
 export function PlansSection({ id = "planos", title, subtitle, plans, audience }: PlansSectionProps) {
+  const gridCols =
+    plans.length >= 4
+      ? "lg:grid-cols-2 xl:grid-cols-4"
+      : "lg:grid-cols-3";
+
   return (
     <section id={id} className="py-20 lg:py-24">
       <Container>
@@ -35,11 +45,13 @@ export function PlansSection({ id = "planos", title, subtitle, plans, audience }
           <p className="mt-3 text-base text-[#6B7280] sm:text-lg">{subtitle}</p>
         </div>
 
-        <div className="mt-12 grid gap-5 lg:grid-cols-3">
+        <div className={`mt-12 grid gap-5 ${gridCols}`}>
           {plans.map((plan) => {
-            const href = plan.isFree
-              ? `/cadastro?tipo=${audience === "fornecedor" ? "fornecedor" : "sindico"}`
-              : `/checkout?plan=${plan.slug}`;
+            const href =
+              plan.ctaHref ??
+              (plan.isFree
+                ? `/cadastro?tipo=${audience === "fornecedor" ? "fornecedor" : "sindico"}`
+                : `/checkout?plan=${plan.slug}`);
 
             return (
               <article
@@ -60,15 +72,27 @@ export function PlansSection({ id = "planos", title, subtitle, plans, audience }
                   {plan.description || "Plano CotaCondo"}
                 </p>
                 <p className="mt-6 text-4xl font-extrabold tracking-tight text-[#0A0A0A]">
-                  {formatPriceCents(plan.priceCents)}
-                  {!plan.isFree ? (
-                    <span className="text-base font-medium text-[#6B7280]"> /mês</span>
-                  ) : null}
+                  {plan.consultPrice ? (
+                    <span className="text-2xl sm:text-3xl">Sob consulta</span>
+                  ) : (
+                    <>
+                      {formatPriceCents(plan.priceCents)}
+                      {!plan.isFree ? (
+                        <span className="text-base font-medium text-[#6B7280]"> /mês</span>
+                      ) : null}
+                    </>
+                  )}
                 </p>
-                <p className="mt-2 text-xs text-[#6B7280]">
-                  Franquia:{" "}
-                  {plan.monthlyQuota == null ? "Ilimitada" : `${plan.monthlyQuota} cotações/mês`}
-                </p>
+                {!plan.hideQuota ? (
+                  <p className="mt-2 text-xs text-[#6B7280]">
+                    Franquia:{" "}
+                    {plan.monthlyQuota == null
+                      ? "Ilimitada"
+                      : `${plan.monthlyQuota} cotações/mês`}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs text-[#6B7280]">Negócio sob relacionamento</p>
+                )}
                 <ul className="mt-6 flex-1 space-y-2.5">
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2 text-sm text-[#171717]">
@@ -77,12 +101,12 @@ export function PlansSection({ id = "planos", title, subtitle, plans, audience }
                     </li>
                   ))}
                 </ul>
-                <Link href={href} className="mt-8 block">
+                <Link href={href} className="mt-8 block" {...(href.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})}>
                   <Button
                     className="w-full"
                     variant={plan.recommended ? "primary" : "secondary"}
                   >
-                    {plan.isFree ? "Começar grátis" : "Contratar"}
+                    {plan.ctaLabel ?? (plan.isFree ? "Começar grátis" : "Contratar")}
                   </Button>
                 </Link>
               </article>

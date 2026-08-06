@@ -405,6 +405,90 @@ export async function createCategoryAddonCheckout(input: {
   return { checkoutId: checkout.id, checkoutUrl: session.checkoutUrl, unitPrice, total };
 }
 
+/**
+ * Cobrança personalizada (VIP / banner / campanhas) — fatura valor livre
+ * sem alterar a lógica de features do produto.
+ */
+export async function createCustomBillingCheckout(input: {
+  organizationId: string;
+  userId: string;
+  amountCents: number;
+  description: string;
+  planSlug?: string | null;
+}) {
+  if (!Number.isFinite(input.amountCents) || input.amountCents < 1) {
+    throw new Error("Valor inválido para cobrança personalizada.");
+  }
+  const description = input.description.trim();
+  if (!description) throw new Error("Descrição obrigatória.");
+
+  let planId: string | null = null;
+  if (input.planSlug) {
+    const plan = await prisma.plan.findFirst({
+      where: { slug: input.planSlug, isActive: true },
+    });
+    if (!plan) throw new Error("Plano de referência não encontrado.");
+    planId = plan.id;
+  }
+
+  const idempotencyKey = makeIdempotencyKey([
+    input.organizationId,
+    "custom",
+    String(input.amountCents),
+    description,
+    randomUUID(),
+  ]);
+
+  const checkout = await prisma.paymentCheckout.create({
+    data: {
+      organizationId: input.organizationId,
+      userId: input.userId,
+      kind: "custom",
+      planId,
+      status: "pending",
+      amountCents: input.amountCents,
+      idempotencyKey,
+      metadataJson: JSON.stringify({
+        description,
+        planSlug: input.planSlug ?? null,
+        billingKind: "custom_addon",
+      }),
+    },
+  });
+
+  const provider = getPaymentProvider();
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const session = await provider.createCheckout({
+    amountCents: input.amountCents,
+    description,
+    organizationId: input.organizationId,
+    checkoutId: checkout.id,
+    idempotencyKey,
+    successUrl: `${base}/checkout/sucesso?checkout=${checkout.id}`,
+    cancelUrl: `${base}/app/plataforma?custom=canceled`,
+  });
+
+  await prisma.paymentCheckout.update({
+    where: { id: checkout.id },
+    data: { externalId: session.externalId, provider: session.provider },
+  });
+
+  await writeAuditLog({
+    userId: input.userId,
+    action: "billing.custom_checkout_created",
+    entityType: "payment_checkout",
+    entityId: checkout.id,
+    metadata: {
+      organizationId: input.organizationId,
+      amountCents: input.amountCents,
+      description,
+      planSlug: input.planSlug ?? null,
+    },
+  });
+
+  return { checkoutId: checkout.id, checkoutUrl: session.checkoutUrl };
+}
+
 export async function fulfillCheckoutPaid(checkoutId: string, userId?: string | null) {
   const checkout = await prisma.paymentCheckout.findUnique({
     where: { id: checkoutId },
@@ -424,7 +508,24 @@ export async function fulfillCheckoutPaid(checkoutId: string, userId?: string | 
     categoryIds?: string[];
     migrationId?: string;
     unitPriceCents?: number;
+    description?: string;
   };
+
+  if (checkout.kind === "custom") {
+    await writeAuditLog({
+      userId: userId ?? checkout.userId,
+      action: "billing.custom_checkout_paid",
+      entityType: "payment_checkout",
+      entityId: checkout.id,
+      metadata: {
+        organizationId: checkout.organizationId,
+        amountCents: checkout.amountCents,
+        description: metadata.description ?? null,
+        planId: checkout.planId,
+      },
+    });
+    return { alreadyProcessed: false as const, checkout };
+  }
 
   if (checkout.kind === "plan" || checkout.kind === "migration") {
     if (!checkout.planId) throw new Error("Checkout sem plano.");

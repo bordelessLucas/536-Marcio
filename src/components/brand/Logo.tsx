@@ -17,7 +17,7 @@ export function Logo({ className, href = "/", priority = false }: LogoProps) {
       height={104}
       quality={100}
       priority={priority}
-      sizes="140px"
+      sizes="180px"
       className={cn("w-auto object-contain object-left", className || "h-8")}
     />
   );

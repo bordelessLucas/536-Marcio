@@ -6,22 +6,67 @@ import { PlansSection, type PlanCard } from "@/components/marketing/PlansSection
 import { WhatsAppCta } from "@/components/marketing/WhatsAppCta";
 import { PublicFooter } from "@/components/marketing/PublicFooter";
 
-function supplierFeatures(slug: string): string[] {
-  switch (slug) {
-    case "fornecedor-free":
-      return ["1 cotação interna/mês", "1 categoria do catálogo", "Central de compliance"];
-    case "fornecedor-pro":
-      return [
-        "30 cotações/mês",
-        "3 categorias inclusas",
-        "Elegível a parcerias com administradoras",
-      ];
-    case "fornecedor-premium":
-      return ["Cotações ilimitadas", "Até 10 categorias + CRM", "Parcerias e prioridade"];
-    default:
-      return ["Plataforma CotaCondo"];
+const DISPLAY: Record<
+  string,
+  {
+    name: string;
+    description: string;
+    priceCents?: number;
+    monthlyQuota: number | null;
+    features: string[];
+    recommended?: boolean;
+    consultPrice?: boolean;
+    hideQuota?: boolean;
+    ctaLabel?: string;
   }
-}
+> = {
+  "fornecedor-free": {
+    name: "Condo Free",
+    description: "Comece a receber oportunidades com franquia inicial.",
+    priceCents: 0,
+    monthlyQuota: 5,
+    features: [
+      "5 cotações internas/mês",
+      "1 categoria do catálogo",
+      "Gestão de oportunidades",
+    ],
+  },
+  "fornecedor-pro": {
+    name: "Condo Basic",
+    description: "Mais volume, categorias e elegibilidade a parcerias.",
+    monthlyQuota: 30,
+    features: [
+      "CRM",
+      "30 cotações/mês",
+      "3 categorias inclusas",
+      "Elegível a parcerias com administradoras",
+      "Consulte Adicionais",
+    ],
+    recommended: true,
+  },
+  "fornecedor-premium": {
+    name: "Condo Premium",
+    description: "Escala máxima com categorias amplas e CRM.",
+    monthlyQuota: 150,
+    features: [
+      "Cotações ilimitadas",
+      "Até 5 categorias",
+      "CRM",
+      "150 cotações/mês",
+      "Elegível a parcerias com administradoras",
+      "Consulte Adicionais",
+    ],
+  },
+  "fornecedor-vip": {
+    name: "Plano VIP",
+    description: "Adicionais sob relacionamento comercial, sem alterar a lógica do produto.",
+    monthlyQuota: null,
+    features: ["Consulte Banner Patrocinado", "Consulte Campanhas de ativação"],
+    consultPrice: true,
+    hideQuota: true,
+    ctaLabel: "Fale com um consultor",
+  },
+};
 
 export default async function FornecedoresPage() {
   const [marketing, plans] = await Promise.all([
@@ -29,16 +74,35 @@ export default async function FornecedoresPage() {
     listActivePlans("fornecedor"),
   ]);
 
-  const planCards: PlanCard[] = plans.map((plan) => ({
-    slug: plan.slug,
-    name: plan.name,
-    description: plan.description,
-    priceCents: plan.priceCents,
-    isFree: plan.isFree,
-    monthlyQuota: plan.monthlyQuota,
-    features: supplierFeatures(plan.slug),
-    recommended: plan.slug === "fornecedor-pro",
-  }));
+  const bySlug = new Map(plans.map((plan) => [plan.slug, plan]));
+
+  const planCards: PlanCard[] = [];
+  for (const slug of [
+    "fornecedor-free",
+    "fornecedor-pro",
+    "fornecedor-premium",
+    "fornecedor-vip",
+  ] as const) {
+    const plan = bySlug.get(slug);
+    const display = DISPLAY[slug];
+    if (!display) continue;
+    if (!plan && slug !== "fornecedor-vip") continue;
+
+    planCards.push({
+      slug,
+      name: display.name,
+      description: display.description,
+      priceCents: display.priceCents ?? plan?.priceCents ?? 0,
+      isFree: plan?.isFree ?? false,
+      monthlyQuota: display.monthlyQuota,
+      features: display.features,
+      recommended: display.recommended ?? false,
+      consultPrice: display.consultPrice,
+      hideQuota: display.hideQuota,
+      ctaLabel: display.ctaLabel,
+      ctaHref: slug === "fornecedor-vip" ? marketing.whatsappUrl : undefined,
+    });
+  }
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_80%_8%,rgba(192,38,211,0.11),transparent_34%),radial-gradient(circle_at_10%_40%,rgba(6,182,212,0.08),transparent_30%),#ffffff]">
@@ -51,7 +115,7 @@ export default async function FornecedoresPage() {
         <PlansSection
           id="planos-fornecedor"
           title="Planos para fornecedores"
-          subtitle="Do Free ao Premium: mais categorias, elegibilidade a parcerias e CRM no topo da pirâmide."
+          subtitle="Do Free ao Premium: mais categorias, elegibilidade a parcerias e CRM. VIP para ativação comercial."
           plans={planCards}
           audience="fornecedor"
         />
@@ -63,18 +127,18 @@ export default async function FornecedoresPage() {
                 {[
                   {
                     step: "1",
-                    title: "Cadastre-se",
-                    text: "Empresa, CNPJ e categorias do catálogo oficial.",
+                    title: "Cadastro",
+                    text: "Cadastre sua empresa",
                   },
                   {
                     step: "2",
-                    title: "Compliance",
-                    text: "Envie certidões e acompanhe o status de aprovação.",
+                    title: "Validação",
+                    text: "Envie seus documentos",
                   },
                   {
                     step: "3",
-                    title: "Propostas",
-                    text: "Receba convites, declina ou envie condições com anexos.",
+                    title: "Oportunidades",
+                    text: "Receba oportunidades, aceite, recuse e seja avisado sobre a finalização do processo.",
                   },
                 ].map((item) => (
                   <li key={item.step} className="rounded-2xl border border-black/5 p-4">
@@ -87,9 +151,17 @@ export default async function FornecedoresPage() {
             </div>
           </div>
         </section>
-        <WhatsAppCta whatsappUrl={marketing.whatsappUrl} />
+        <WhatsAppCta
+          whatsappUrl={marketing.whatsappUrl}
+          title="Fale com um consultor"
+          description="Aumente seu potencial de vendas, se conecte com administradoras e síndicos de todo o Brasil. Tire suas dúvidas."
+        />
       </main>
-      <PublicFooter blogUrl={marketing.blogUrl} whatsappUrl={marketing.whatsappUrl} />
+      <PublicFooter
+        blogUrl={marketing.blogUrl}
+        whatsappUrl={marketing.whatsappUrl}
+        description="Sua empresa amplia oportunidades, se conecta com potenciais clientes e se torna referência."
+      />
     </div>
   );
 }

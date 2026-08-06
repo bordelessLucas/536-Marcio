@@ -5,9 +5,15 @@ import { Container } from "@/components/ui/Container";
 
 type WhatsAppCtaProps = {
   whatsappUrl: string;
+  title?: string;
+  description?: string;
 };
 
-export function WhatsAppCta({ whatsappUrl }: WhatsAppCtaProps) {
+export function WhatsAppCta({
+  whatsappUrl,
+  title = "Fale com um Consultor",
+  description = "Chegou o momento de evoluir sua área de compras com uma solução que vai proporcionar segurança e controle. Estamos à disposição.",
+}: WhatsAppCtaProps) {
   return (
     <section id="especialista" className="pb-20 lg:pb-24">
       <Container>
@@ -17,12 +23,9 @@ export function WhatsAppCta({ whatsappUrl }: WhatsAppCtaProps) {
               Atendimento
             </p>
             <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-              Falar com um especialista
+              {title}
             </h2>
-            <p className="mt-3 text-base text-white/65">
-              Tire dúvidas sobre planos, migração de síndico para administradora ou onboarding de
-              fornecedores. Atendimento humano, sem bots genéricos.
-            </p>
+            <p className="mt-3 text-base text-white/65">{description}</p>
           </div>
           <Link href={whatsappUrl} target="_blank" rel="noreferrer" className="mt-8 inline-block lg:mt-0">
             <Button size="lg" className="gap-2 bg-white text-[#0B0B0F] hover:bg-white/90">

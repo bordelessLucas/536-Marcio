@@ -61,7 +61,7 @@ export function PublicHeader({
               : "shadow-[0_8px_30px_-12px_rgba(147,51,234,0.18)]",
           )}
         >
-          <Logo priority className="h-7 md:h-8" />
+          <Logo priority className="h-10 md:h-12" />
 
           <nav className="hidden items-center gap-7 md:flex">
             {links.map((link) =>
@@ -129,7 +129,7 @@ export function PublicHeader({
               className="fixed inset-y-0 right-0 z-[60] w-[min(320px,88vw)] border-l border-white/70 bg-gradient-to-br from-white/95 to-white/80 p-6 shadow-2xl backdrop-blur-[40px] md:hidden"
             >
               <div className="mb-8 flex items-center justify-between">
-                <Logo href={null} className="h-7" />
+                <Logo href={null} className="h-10" />
                 <button type="button" onClick={() => setOpen(false)} aria-label="Fechar menu">
                   <X className="h-5 w-5" />
                 </button>

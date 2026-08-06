@@ -53,7 +53,7 @@ export function BannerCarousel({ banners, compact = false }: BannerCarouselProps
       className={`relative flex w-full items-end overflow-hidden bg-gradient-to-br ${
         compact
           ? "min-h-[140px] sm:min-h-[170px] lg:min-h-[190px]"
-          : "min-h-[220px] sm:min-h-[320px] lg:min-h-[380px]"
+          : "min-h-[150px] sm:min-h-[210px] lg:min-h-[250px]"
       } ${GRADIENTS[index % GRADIENTS.length]}`}
     >
       {/* imageUrl pode ser path local ou URL; usamos como camadas de textura via CSS var */}
@@ -66,8 +66,8 @@ export function BannerCarousel({ banners, compact = false }: BannerCarouselProps
         }}
       />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.18),transparent_45%)]" />
-      <div className="relative z-10 w-full px-6 py-10 sm:px-12 lg:px-20">
-        <p className="max-w-3xl text-2xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
+      <div className="relative z-10 w-full px-6 py-7 sm:px-12 sm:py-8 lg:px-20 lg:py-9">
+        <p className="max-w-3xl text-xl font-extrabold tracking-tight text-white sm:text-3xl lg:text-4xl">
           {current.title || "CotaCondo"}
         </p>
       </div>
