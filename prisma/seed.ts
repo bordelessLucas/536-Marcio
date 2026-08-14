@@ -224,6 +224,28 @@ async function main() {
       }),
     },
     {
+      slug: "cota-service",
+      name: "Cota Service",
+      description:
+        "Cotação gerenciada de ponta a ponta pela equipe CotaCondo (sob consulta).",
+      audience: PlanAudience.solicitante,
+      isFree: false,
+      monthlyQuota: null,
+      priceCents: 0,
+      sortOrder: 55,
+      billingInterval: "monthly",
+      featuresJson: JSON.stringify({
+        whitelabel: true,
+        partnerships: true,
+        favorites: true,
+        commissions: false,
+        sla: true,
+        cotaService: true,
+        rif: true,
+        managedQuotation: true,
+      }),
+    },
+    {
       slug: "fornecedor-free",
       name: "Condo Free",
       description: "5 cotações internas/mês e 1 categoria",
@@ -336,6 +358,16 @@ async function main() {
     },
   });
 
+  const masterServiceOrg = await prisma.organization.upsert({
+    where: { id: "org_master_service" },
+    update: { name: "CotaCondo Master Service", type: OrganizationType.master_service },
+    create: {
+      id: "org_master_service",
+      name: "CotaCondo Master Service",
+      type: OrganizationType.master_service,
+    },
+  });
+
   const demos = [
     {
       email: "admin@cotacondo.com.br",
@@ -343,6 +375,13 @@ async function main() {
       organizationId: platformOrg.id,
       role: MemberRole.master,
       planSlug: "sindico-free",
+    },
+    {
+      email: "masterservice@demo.cotacondo.com.br",
+      name: "Master Service Demo",
+      organizationId: masterServiceOrg.id,
+      role: MemberRole.master,
+      planSlug: "cota-service",
     },
     {
       email: "sindico@demo.cotacondo.com.br",
@@ -610,6 +649,141 @@ async function main() {
         quotationId: quotation2.id,
         supplierOrgId: fornecedorOrg.id,
         status: "pendente",
+      },
+    });
+  }
+
+  const serviceClient = await prisma.serviceClient.upsert({
+    where: { clientOrgId: admOrg.id },
+    update: {
+      managedByOrgId: masterServiceOrg.id,
+      displayName: "Administradora Premium Demo",
+      primaryColor: "#7C3AED",
+      secondaryColor: "#0D9488",
+      solicitationLinkSlug: "adm-premium-demo",
+      solicitationLinkActive: true,
+      isActive: true,
+      aiApiMode: "platform",
+    },
+    create: {
+      id: "service_client_adm_demo",
+      managedByOrgId: masterServiceOrg.id,
+      clientOrgId: admOrg.id,
+      displayName: "Administradora Premium Demo",
+      primaryColor: "#7C3AED",
+      secondaryColor: "#0D9488",
+      solicitationLinkSlug: "adm-premium-demo",
+      solicitationLinkActive: true,
+      isActive: true,
+      aiApiMode: "platform",
+      paymentLinkUrl: "https://pay.cotacondo.com.br/demo-cota-service",
+    },
+  });
+
+  await prisma.serviceClientManager.upsert({
+    where: {
+      serviceClientId_email: {
+        serviceClientId: serviceClient.id,
+        email: "adm.master@demo.cotacondo.com.br",
+      },
+    },
+    update: {
+      name: "Adm Master Demo",
+      roleLabel: "gerente",
+      userId: (
+        await prisma.user.findUniqueOrThrow({
+          where: { email: "adm.master@demo.cotacondo.com.br" },
+        })
+      ).id,
+    },
+    create: {
+      serviceClientId: serviceClient.id,
+      userId: (
+        await prisma.user.findUniqueOrThrow({
+          where: { email: "adm.master@demo.cotacondo.com.br" },
+        })
+      ).id,
+      name: "Adm Master Demo",
+      email: "adm.master@demo.cotacondo.com.br",
+      roleLabel: "gerente",
+    },
+  });
+
+  const admCondo = await prisma.condominium.upsert({
+    where: { id: "condo_demo_adm_service" },
+    update: {
+      name: "Residencial Aurora Service",
+      address: "Av. Paulista, 1000 — São Paulo/SP",
+      organizationId: admOrg.id,
+      archivedAt: null,
+    },
+    create: {
+      id: "condo_demo_adm_service",
+      organizationId: admOrg.id,
+      name: "Residencial Aurora Service",
+      address: "Av. Paulista, 1000 — São Paulo/SP",
+      document: "44555666000177",
+      contactName: "Gerente Operacional",
+      contactEmail: "adm.operacional@demo.cotacondo.com.br",
+      contactPhone: "11999990000",
+    },
+  });
+
+  if (segurosCategory && serviceItem) {
+    const serviceMasterUser = await prisma.user.findUniqueOrThrow({
+      where: { email: "masterservice@demo.cotacondo.com.br" },
+    });
+
+    const serviceQuotation = await prisma.quotation.upsert({
+      where: { publicId: "COT-SERVICE-000001" },
+      update: {
+        description: "Cotação Cota Service demo — aguardando liberação do Master Service.",
+        serviceClientId: serviceClient.id,
+        serviceManagedByOrgId: masterServiceOrg.id,
+        servicePipelineStatus: "em_liberacao",
+        requesterName: "Carla Operacional",
+        requesterEmail: "adm.operacional@demo.cotacondo.com.br",
+        requesterPhone: "11999990000",
+        requesterRole: "Assistente de compras",
+        invitesPaused: true,
+      },
+      create: {
+        publicId: "COT-SERVICE-000001",
+        organizationId: admOrg.id,
+        condominiumId: admCondo.id,
+        categoryId: segurosCategory.id,
+        serviceItemId: serviceItem.id,
+        urgency: "alta",
+        description: "Cotação Cota Service demo — aguardando liberação do Master Service.",
+        minProposals: 3,
+        maxProposals: 8,
+        status: "aberta",
+        invitesPaused: true,
+        createdByUserId: serviceMasterUser.id,
+        serviceClientId: serviceClient.id,
+        serviceManagedByOrgId: masterServiceOrg.id,
+        servicePipelineStatus: "em_liberacao",
+        requesterName: "Carla Operacional",
+        requesterEmail: "adm.operacional@demo.cotacondo.com.br",
+        requesterPhone: "11999990000",
+        requesterRole: "Assistente de compras",
+      },
+    });
+
+    await prisma.quotationInvite.upsert({
+      where: {
+        quotationId_supplierOrgId: {
+          quotationId: serviceQuotation.id,
+          supplierOrgId: fornecedorOrg.id,
+        },
+      },
+      update: { status: "pendente" },
+      create: {
+        quotationId: serviceQuotation.id,
+        supplierOrgId: fornecedorOrg.id,
+        status: "pendente",
+        priorityTier: 2,
+        selectionReason: "Cota Service — base CotaCondo",
       },
     });
   }

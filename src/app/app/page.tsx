@@ -11,6 +11,11 @@ import {
 import { markOverdueCompliance } from "@/features/compliance/expire";
 import { getMarketingSettings } from "@/features/marketing/data";
 import { formatPriceCents } from "@/features/billing/money";
+import { getServicePipelineCounts } from "@/features/master-service/data";
+import {
+  SERVICE_PIPELINE_LABELS,
+  SERVICE_PIPELINE_ORDER,
+} from "@/features/master-service/pipeline";
 import { Button } from "@/components/ui/Button";
 
 type DashCard = {
@@ -32,13 +37,14 @@ export default async function AppHomePage() {
   const isAdmMaster =
     session.organizationType === OrganizationType.administradora &&
     session.role === MemberRole.master;
+  const isMasterService = session.organizationType === OrganizationType.master_service;
 
   if (isFornecedor) {
     await markOverdueCompliance(session.organizationId);
   }
 
-  const [kpis, supplierKpis, marketing] = await Promise.all([
-    isFornecedor
+  const [kpis, supplierKpis, marketing, serviceCounts] = await Promise.all([
+    isFornecedor || isMasterService
       ? Promise.resolve(null)
       : getDashboardKpis({
           organizationId: session.organizationId,
@@ -48,6 +54,9 @@ export default async function AppHomePage() {
       ? getSupplierDashboardKpis(session.organizationId)
       : Promise.resolve(null),
     getMarketingSettings(),
+    isMasterService
+      ? getServicePipelineCounts(session.organizationId)
+      : Promise.resolve(null),
   ]);
 
   const solicitanteCards: DashCard[] =
@@ -150,14 +159,31 @@ export default async function AppHomePage() {
         ]
       : [];
 
-  const cards = solicitanteCards.length
-    ? solicitanteCards
-    : supplierCards.length
-      ? supplierCards
-      : masterCards;
+  const serviceCards: DashCard[] =
+    isMasterService && serviceCounts
+      ? SERVICE_PIPELINE_ORDER.map((status) => ({
+          title: SERVICE_PIPELINE_LABELS[status],
+          value: String(serviceCounts[status]),
+          href: `/app/service/cotacoes?status=${status}`,
+        }))
+      : [];
 
-  const capabilities =
-    session.organizationType === OrganizationType.fornecedor
+  const cards = serviceCards.length
+    ? serviceCards
+    : solicitanteCards.length
+      ? solicitanteCards
+      : supplierCards.length
+        ? supplierCards
+        : masterCards;
+
+  const capabilities = isMasterService
+    ? [
+        "Gerir clientes Cota Service com whitelabel (logo, cores e link exclusivo)",
+        "Pipeline: Em Liberação, Andamento, Negociação, Análise, Recusadas e Aprovadas",
+        "Validar, editar fluxo, gerar Análise RIF e liberar aceite ao solicitante",
+        "Blindagem de contato até o aceite final; relatórios e inteligência de mercado",
+      ]
+    : session.organizationType === OrganizationType.fornecedor
       ? [
           "Receber cotações por categorias do pacote",
           "Enviar propostas com múltiplas condições e anexos",
@@ -203,6 +229,16 @@ export default async function AppHomePage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {isMasterService ? (
+            <>
+              <Link href="/app/service/cotacoes">
+                <Button>Abrir pipeline</Button>
+              </Link>
+              <Link href="/app/service/clientes">
+                <Button variant="secondary">Clientes</Button>
+              </Link>
+            </>
+          ) : null}
           {isSolicitante && kpis?.canCreateQuotation ? (
             <Link href="/app/cotacoes/nova">
               <Button>Nova cotação</Button>

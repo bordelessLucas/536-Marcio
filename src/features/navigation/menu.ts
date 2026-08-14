@@ -6,6 +6,8 @@ import {
   FileCheck2,
   Handshake,
   LayoutDashboard,
+  LineChart,
+  Palette,
   Settings,
   Shield,
   Users,
@@ -136,6 +138,30 @@ const ALL_ITEMS: NavItem[] = [
     types: [OrganizationType.master_admin],
   },
   {
+    label: "Pipeline Service",
+    href: "/app/service/cotacoes",
+    icon: ClipboardList,
+    types: [OrganizationType.master_service],
+  },
+  {
+    label: "Clientes Service",
+    href: "/app/service/clientes",
+    icon: Palette,
+    types: [OrganizationType.master_service],
+  },
+  {
+    label: "Relatórios Service",
+    href: "/app/service/relatorios",
+    icon: LineChart,
+    types: [OrganizationType.master_service],
+  },
+  {
+    label: "Mercado",
+    href: "/app/service/mercado",
+    icon: LineChart,
+    types: [OrganizationType.master_service],
+  },
+  {
     label: "Configurações",
     href: "/app/configuracoes",
     icon: Settings,
@@ -182,6 +208,7 @@ export function getNavItemsForSession(input: {
 
 export function profileLabel(type: OrganizationType, role: MemberRole): string {
   if (type === OrganizationType.master_admin) return "Master Admin";
+  if (type === OrganizationType.master_service) return "Master Service";
   if (type === OrganizationType.fornecedor) return "Fornecedor";
   if (type === OrganizationType.sindico) return "Síndico";
   if (type === OrganizationType.administradora) {

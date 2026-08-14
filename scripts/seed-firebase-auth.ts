@@ -14,6 +14,7 @@ const LEGACY_PASSWORD = "Demo@123456";
 
 const DEMO_USERS = [
   "admin@cotacondo.com.br",
+  "masterservice@demo.cotacondo.com.br",
   "sindico@demo.cotacondo.com.br",
   "fornecedor@demo.cotacondo.com.br",
   "adm.master@demo.cotacondo.com.br",

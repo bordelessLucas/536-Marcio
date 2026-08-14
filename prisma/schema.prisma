@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -12,6 +12,26 @@ enum OrganizationType {
   sindico
   administradora
   master_admin
+  master_service
+}
+
+enum ServicePipelineStatus {
+  em_liberacao
+  em_andamento
+  em_negociacao
+  em_analise
+  recusada
+  aprovada
+}
+
+enum RifAnalysisStatus {
+  draft
+  published
+}
+
+enum ServiceAiApiMode {
+  platform
+  client
 }
 
 enum MemberRole {
@@ -110,6 +130,9 @@ model Organization {
   commissionEntries    CommissionEntry[]       @relation("CommissionEntryAdm")
   commissionEntrySupplier CommissionEntry[]    @relation("CommissionEntrySupplier")
   categoryAddonPurchases CategoryAddonPurchase[]
+  serviceClientsManaged  ServiceClient[]           @relation("ServiceClientManager")
+  serviceClientProfile   ServiceClient?            @relation("ServiceClientOrg")
+  serviceQuotations      Quotation[]               @relation("ServiceManagedQuotations")
 }
 
 model OrganizationMember {
@@ -445,21 +468,100 @@ model Quotation {
   otherCompanyName      String?
   otherFinalAmountCents Int?
   createdByUserId       String
+  /// Cota Service — vínculo com cliente gerenciado pelo Master Service
+  serviceClientId       String?
+  serviceManagedByOrgId String?
+  servicePipelineStatus ServicePipelineStatus?
+  requesterName         String?
+  requesterEmail        String?
+  requesterPhone        String?
+  requesterRole         String?
+  masterAcceptedAt      DateTime?
+  solicitanteAcceptedAt DateTime?
+  contactReleasedAt     DateTime?
+  rifVisibleToClient    Boolean          @default(false)
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
-  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  condominium  Condominium            @relation(fields: [condominiumId], references: [id])
-  category     ServiceCategory        @relation(fields: [categoryId], references: [id])
-  serviceItem  ServiceItem            @relation(fields: [serviceItemId], references: [id])
-  attachments  QuotationAttachment[]
-  invites      QuotationInvite[]
-  proposals    Proposal[]
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  condominium      Condominium            @relation(fields: [condominiumId], references: [id])
+  category         ServiceCategory        @relation(fields: [categoryId], references: [id])
+  serviceItem      ServiceItem            @relation(fields: [serviceItemId], references: [id])
+  serviceClient    ServiceClient?         @relation(fields: [serviceClientId], references: [id], onDelete: SetNull)
+  serviceManagedBy Organization?          @relation("ServiceManagedQuotations", fields: [serviceManagedByOrgId], references: [id], onDelete: SetNull)
+  attachments      QuotationAttachment[]
+  invites          QuotationInvite[]
+  proposals        Proposal[]
+  rifAnalyses      RifAnalysis[]
 
   @@index([organizationId, status])
   @@index([organizationId, createdAt])
   @@index([categoryId])
   @@index([serviceItemId])
+  @@index([serviceClientId, servicePipelineStatus])
+  @@index([serviceManagedByOrgId, servicePipelineStatus])
+}
+
+/// Cliente do plano Cota Service (Administradora/Síndico) gerido pelo Master Service
+model ServiceClient {
+  id                     String           @id @default(cuid())
+  managedByOrgId         String
+  clientOrgId            String           @unique
+  displayName            String
+  logoUrl                String?
+  primaryColor           String           @default("#9333EA")
+  secondaryColor         String           @default("#14B8A6")
+  solicitationLinkSlug   String           @unique
+  solicitationLinkActive Boolean          @default(true)
+  paymentLinkUrl         String?
+  isActive               Boolean          @default(true)
+  aiApiMode              ServiceAiApiMode @default(platform)
+  aiApiKeyMasked         String?
+  notes                  String?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  managedBy  Organization @relation("ServiceClientManager", fields: [managedByOrgId], references: [id], onDelete: Cascade)
+  clientOrg  Organization @relation("ServiceClientOrg", fields: [clientOrgId], references: [id], onDelete: Cascade)
+  quotations Quotation[]
+  managers   ServiceClientManager[]
+
+  @@index([managedByOrgId])
+  @@index([solicitationLinkSlug])
+}
+
+/// Gerente/assistente vinculado a um cliente Cota Service
+model ServiceClientManager {
+  id              String   @id @default(cuid())
+  serviceClientId String
+  userId          String
+  name            String
+  email           String
+  roleLabel       String   @default("gerente")
+  createdAt       DateTime @default(now())
+
+  serviceClient ServiceClient @relation(fields: [serviceClientId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceClientId, email])
+  @@index([serviceClientId])
+  @@index([userId])
+}
+
+model RifAnalysis {
+  id                String            @id @default(cuid())
+  quotationId       String
+  generatedByUserId String
+  status            RifAnalysisStatus @default(draft)
+  averageCents      Int?
+  summaryMarkdown   String
+  comparativeJson   String            @default("[]")
+  aiInsights        String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId, createdAt])
 }
 
 model QuotationAttachment {

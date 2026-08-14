@@ -26,6 +26,14 @@ const PREMIUM_FEATURES = [
   "Gestão do processo",
 ] as const;
 
+const SERVICE_FEATURES = [
+  "Cotação gerenciada ponta a ponta pela CotaCondo",
+  "Portal whitelabel para solicitantes",
+  "Análise RIF comparativa sob demanda",
+  "Equipe Master Service com pipeline completo",
+  "Redução de custo operacional e escala",
+] as const;
+
 const DISPLAY: Record<
   string,
   {
@@ -57,7 +65,27 @@ const DISPLAY: Record<
     monthlyQuota: null,
     features: [...PREMIUM_FEATURES],
   },
+  "cota-service": {
+    name: "Cota Service",
+    description:
+      "Cuidamos de todo o processo de compras da sua administradora de ponta a ponta com inteligência, transparência e gestão.",
+    priceCents: 0,
+    monthlyQuota: null,
+    features: [...SERVICE_FEATURES],
+  },
 };
+
+function buildCotaServiceWhatsAppUrl(baseUrl: string) {
+  const message =
+    "Olá! Sou um cliente interessado no plano Cota Service da CotaCondo. Gostaria de falar com um consultor para entender o plano personalizado de cotação gerenciada.";
+  try {
+    const url = new URL(baseUrl);
+    url.searchParams.set("text", message);
+    return url.toString();
+  } catch {
+    return `https://wa.me/5500000000000?text=${encodeURIComponent(message)}`;
+  }
+}
 
 export default async function HomePage() {
   const [marketing, banners, plans] = await Promise.all([
@@ -66,12 +94,15 @@ export default async function HomePage() {
     listActivePlans("solicitante"),
   ]);
 
+  const serviceWhatsApp = buildCotaServiceWhatsAppUrl(marketing.whatsappUrl);
+
   const planCards: PlanCard[] = plans
     .filter((plan) =>
-      ["sindico-free", "sindico-pago", "adm-premium"].includes(plan.slug),
+      ["sindico-free", "sindico-pago", "adm-premium", "cota-service"].includes(plan.slug),
     )
     .map((plan) => {
       const display = DISPLAY[plan.slug];
+      const isService = plan.slug === "cota-service";
       return {
         slug: plan.slug,
         name: display?.name ?? plan.name,
@@ -81,10 +112,18 @@ export default async function HomePage() {
         monthlyQuota: display?.monthlyQuota ?? plan.monthlyQuota,
         features: display?.features ?? ["Plataforma CotaCondo"],
         recommended: plan.slug === "adm-premium",
+        ...(isService
+          ? {
+              consultPrice: true,
+              hideQuota: true,
+              ctaLabel: "Falar com Consultor",
+              ctaHref: serviceWhatsApp,
+            }
+          : {}),
       };
     });
 
-  const order = ["sindico-free", "sindico-pago", "adm-premium"];
+  const order = ["sindico-free", "sindico-pago", "adm-premium", "cota-service"];
   planCards.sort((a, b) => order.indexOf(a.slug) - order.indexOf(b.slug));
 
   return (

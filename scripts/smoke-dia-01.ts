@@ -63,6 +63,18 @@ async function main() {
       allow: ["/app/plataforma"],
       deny: ["/app/financeiro", "/app/oportunidades"],
     },
+    {
+      email: "masterservice@demo.cotacondo.com.br",
+      type: OrganizationType.master_service,
+      role: MemberRole.master,
+      allow: [
+        "/app/service/cotacoes",
+        "/app/service/clientes",
+        "/app/service/relatorios",
+        "/app/service/mercado",
+      ],
+      deny: ["/app/plataforma", "/app/financeiro", "/app/oportunidades"],
+    },
   ] as const;
 
   for (const c of cases) {

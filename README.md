@@ -29,6 +29,7 @@ Senha: `123456` (Firebase Auth)
 | E-mail | Perfil |
 |--------|--------|
 | admin@cotacondo.com.br | Master Admin |
+| masterservice@demo.cotacondo.com.br | Master Service |
 | sindico@demo.cotacondo.com.br | Síndico |
 | fornecedor@demo.cotacondo.com.br | Fornecedor |
 | adm.master@demo.cotacondo.com.br | Adm Master |
