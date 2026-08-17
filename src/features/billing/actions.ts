@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { OrganizationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuthorizedSession } from "@/lib/auth/guards";
@@ -15,7 +14,7 @@ import {
 } from "@/features/billing/subscriptions";
 import { z } from "zod";
 
-export type ActionResult = { ok: boolean; message?: string; checkoutUrl?: string };
+export type ActionResult = { ok: boolean; message?: string; checkoutUrl?: string | null };
 
 const startCheckoutSchema = z.object({
   planSlug: z.string().min(1),
@@ -41,14 +40,42 @@ export async function startPlanCheckoutAction(formData: FormData): Promise<Actio
     });
 
     revalidatePath("/app/meu-plano");
-    if (result.checkoutUrl) {
-      redirect(result.checkoutUrl);
+    if (!result.checkoutUrl) {
+      return { ok: true, message: "Plano atualizado." };
     }
-    return { ok: true, message: "Plano atualizado.", checkoutUrl: result.checkoutUrl };
+    return { ok: true, checkoutUrl: result.checkoutUrl };
   } catch (error) {
-    if (typeof error === "object" && error && "digest" in error) throw error;
     return { ok: false, message: toPublicErrorMessage(error) };
   }
+}
+
+/** Variante para `useActionState`, que expõe o erro na tela em vez de silenciá-lo. */
+export async function startPlanCheckoutFormAction(
+  _state: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  return startPlanCheckoutAction(formData);
+}
+
+export async function confirmSandboxPaymentFormAction(
+  _state: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  return confirmSandboxPaymentAction(formData);
+}
+
+export async function startCategoryAddonCheckoutFormAction(
+  _state: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  return startCategoryAddonCheckoutAction(formData);
+}
+
+export async function cancelSandboxPaymentFormAction(
+  _state: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  return cancelSandboxPaymentAction(formData);
 }
 
 export async function confirmSandboxPaymentAction(formData: FormData): Promise<ActionResult> {
@@ -66,9 +93,8 @@ export async function confirmSandboxPaymentAction(formData: FormData): Promise<A
     await fulfillCheckoutPaid(checkoutId, session?.userId);
     revalidatePath("/app/meu-plano");
     revalidatePath("/app");
-    redirect(`/checkout/sucesso?checkout=${checkoutId}`);
+    return { ok: true, checkoutUrl: `/checkout/sucesso?checkout=${checkoutId}` };
   } catch (error) {
-    if (typeof error === "object" && error && "digest" in error) throw error;
     return { ok: false, message: toPublicErrorMessage(error) };
   }
 }
@@ -77,9 +103,8 @@ export async function cancelSandboxPaymentAction(formData: FormData): Promise<Ac
   try {
     const checkoutId = String(formData.get("checkoutId") ?? "");
     await markCheckoutFailed(checkoutId, "canceled");
-    redirect(`/checkout?canceled=1`);
+    return { ok: true, checkoutUrl: "/checkout?canceled=1" };
   } catch (error) {
-    if (typeof error === "object" && error && "digest" in error) throw error;
     return { ok: false, message: toPublicErrorMessage(error) };
   }
 }
@@ -100,9 +125,8 @@ export async function startCategoryAddonCheckoutAction(formData: FormData): Prom
       categoryIds,
     });
 
-    redirect(result.checkoutUrl);
+    return { ok: true, checkoutUrl: result.checkoutUrl };
   } catch (error) {
-    if (typeof error === "object" && error && "digest" in error) throw error;
     return { ok: false, message: toPublicErrorMessage(error) };
   }
 }

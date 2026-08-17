@@ -1,4 +1,5 @@
 import { MemberRole, OrganizationType } from "@prisma/client";
+import type { PlanFeatureKey, PlanFeatures } from "@/features/billing/plan-gate";
 import {
   Bell,
   Building2,
@@ -21,6 +22,7 @@ export type NavItem = {
   icon: LucideIcon;
   roles?: MemberRole[];
   types?: OrganizationType[];
+  feature?: PlanFeatureKey;
   financialOnly?: boolean;
 };
 
@@ -76,6 +78,7 @@ const ALL_ITEMS: NavItem[] = [
     icon: Handshake,
     types: [OrganizationType.administradora],
     roles: [MemberRole.master],
+    feature: "partnerships",
   },
   {
     label: "Favoritos",
@@ -83,6 +86,7 @@ const ALL_ITEMS: NavItem[] = [
     icon: Handshake,
     types: [OrganizationType.administradora],
     roles: [MemberRole.master],
+    feature: "favorites",
   },
   {
     label: "Financeiro",
@@ -173,7 +177,9 @@ export function canAccessNavItem(
   input: {
     organizationType: OrganizationType;
     role: MemberRole;
+    features?: PlanFeatures;
   },
+  options?: { checkFeatures?: boolean },
 ): boolean {
   if (item.types && !item.types.includes(input.organizationType)) {
     return false;
@@ -184,6 +190,13 @@ export function canAccessNavItem(
   if (item.financialOnly && input.role !== MemberRole.master) {
     return false;
   }
+  if (
+    (options?.checkFeatures ?? true) &&
+    item.feature &&
+    !input.features?.[item.feature]
+  ) {
+    return false;
+  }
   return true;
 }
 
@@ -192,16 +205,19 @@ export function canAccessHref(
   input: {
     organizationType: OrganizationType;
     role: MemberRole;
+    features?: PlanFeatures;
   },
+  options?: { checkFeatures?: boolean },
 ): boolean {
   const item = ALL_ITEMS.find((navItem) => navItem.href === href);
   if (!item) return true;
-  return canAccessNavItem(item, input);
+  return canAccessNavItem(item, input, options);
 }
 
 export function getNavItemsForSession(input: {
   organizationType: OrganizationType;
   role: MemberRole;
+  features?: PlanFeatures;
 }): NavItem[] {
   return ALL_ITEMS.filter((item) => canAccessNavItem(item, input));
 }

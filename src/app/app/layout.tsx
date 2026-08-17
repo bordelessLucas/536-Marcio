@@ -4,6 +4,7 @@ import { AppBannerCarousel } from "@/components/app/AppBannerCarousel";
 import { getSession } from "@/lib/auth/session";
 import { getAppBannersForSession } from "@/features/marketing/banners";
 import { getUnreadCount } from "@/features/notifications/service";
+import { getPlanGate } from "@/features/billing/plan-gate";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -11,12 +12,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/acesse?next=/app");
   }
 
-  const [banners, unreadNotifications] = await Promise.all([
+  const [banners, unreadNotifications, gate] = await Promise.all([
     getAppBannersForSession({
       userId: session.userId,
       organizationType: session.organizationType,
     }),
     getUnreadCount(session.userId),
+    getPlanGate(session.organizationId),
   ]);
 
   return (
@@ -29,6 +31,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         role: session.role,
       }}
       unreadNotifications={unreadNotifications}
+      features={
+        gate && ["active", "past_due"].includes(gate.subscriptionStatus)
+          ? gate.features
+          : undefined
+      }
       banner={<AppBannerCarousel banners={banners} />}
     >
       {children}

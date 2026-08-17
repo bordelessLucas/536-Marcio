@@ -11,6 +11,7 @@ import { getNavItemsForSession, profileLabel } from "@/features/navigation/menu"
 import { NotificationBell } from "@/features/notifications/components/NotificationBell";
 import type { MemberRole, OrganizationType } from "@prisma/client";
 import { cn } from "@/lib/cn";
+import type { PlanFeatures } from "@/features/billing/plan-gate";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -23,6 +24,7 @@ type AppShellProps = {
     organizationType: OrganizationType;
     role: MemberRole;
   };
+  features?: PlanFeatures;
 };
 
 function isActivePath(pathname: string, href: string) {
@@ -30,12 +32,13 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppShell({ children, session, banner, unreadNotifications = 0 }: AppShellProps) {
+export function AppShell({ children, session, banner, unreadNotifications = 0, features }: AppShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const items = getNavItemsForSession({
     organizationType: session.organizationType,
     role: session.role,
+    features,
   });
   const profile = profileLabel(session.organizationType, session.role);
 

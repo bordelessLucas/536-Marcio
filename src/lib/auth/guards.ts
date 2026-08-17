@@ -13,7 +13,7 @@ export async function requireAuthorizedSession(options?: {
     redirect("/acesse?next=/app");
   }
 
-  if (options?.href && !canAccessHref(options.href, session)) {
+  if (options?.href && !canAccessHref(options.href, session, { checkFeatures: false })) {
     redirect("/app");
   }
 

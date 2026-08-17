@@ -299,7 +299,7 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
       metadata: { provider: "firebase", firebaseUid },
     });
 
-    redirect(safeAppPath(formData.get("next")));
+    redirect(safeNextPath(formData.get("next")));
   } catch (error) {
     if (typeof error === "object" && error && "digest" in error) {
       throw error;
@@ -308,9 +308,13 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
   }
 }
 
-function safeAppPath(value: FormDataEntryValue | null): string {
+function safeNextPath(value: FormDataEntryValue | null): string {
   const path = String(value ?? "/app");
-  if (path.startsWith("/app") && !path.startsWith("//") && !path.includes("://")) {
+  if (
+    (path.startsWith("/app") || path.startsWith("/checkout")) &&
+    !path.startsWith("//") &&
+    !path.includes("://")
+  ) {
     return path;
   }
   return "/app";

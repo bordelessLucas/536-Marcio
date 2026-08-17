@@ -6,7 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { requireAuthorizedSession } from "@/lib/auth/guards";
 import { toPublicErrorMessage } from "@/lib/errors";
 import { writeAuditLog } from "@/lib/audit";
-import { can, getPlanGate } from "@/features/billing/plan-gate";
+import {
+  can,
+  getPlanGate,
+  parsePlanFeatures,
+} from "@/features/billing/plan-gate";
 
 import { FREE_PARTNERSHIP_MESSAGE } from "@/features/partnerships/messages";
 
@@ -45,18 +49,8 @@ export async function createPartnershipAction(formData: FormData): Promise<Actio
     const settings = await prisma.platformSettings.findUnique({ where: { id: "default" } });
     const lockEnabled = settings?.partnershipLockEnabled ?? true;
     const supplierPlan = supplier.subscriptions[0]?.plan;
-    let features: { partnershipEligible?: boolean } = {};
-    try {
-      features = JSON.parse(supplierPlan?.featuresJson ?? "{}") as {
-        partnershipEligible?: boolean;
-      };
-    } catch {
-      features = {};
-    }
-
-    const isEligible =
-      Boolean(features.partnershipEligible) ||
-      (!supplierPlan?.isFree && (supplierPlan?.slug === "fornecedor-pro" || supplierPlan?.slug === "fornecedor-premium"));
+    const features = parsePlanFeatures(supplierPlan?.featuresJson);
+    const isEligible = Boolean(features.partnershipEligible);
 
     if (lockEnabled && !isEligible) {
       await writeAuditLog({

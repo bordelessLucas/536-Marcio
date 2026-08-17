@@ -14,8 +14,9 @@ import { getSession } from "@/lib/auth/session";
 import { formatPriceCents, getPlanGate, listActivePlans } from "@/features/billing/plan-gate";
 import { describePlanFeatures, isConsultOnlyPlan } from "@/features/billing/plan-features";
 import { getMarketingSettings } from "@/features/marketing/data";
-import { formAction } from "@/lib/form-action";
-import { startPlanCheckoutAction } from "@/features/billing/actions";
+import { isPlanAvailableForOrganization } from "@/features/billing/plan-catalog";
+import { startPlanCheckoutFormAction } from "@/features/billing/actions";
+import { ActionForm } from "@/components/ui/ActionForm";
 import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
 import { PublicHeader } from "@/components/marketing/PublicHeader";
@@ -156,6 +157,10 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
     redirect(`/acesse?next=${encodeURIComponent(`/checkout?plan=${plan.slug}`)}`);
   }
 
+  if (!isPlanAvailableForOrganization(session.organizationType, plan.slug)) {
+    redirect("/app/meu-plano?incompatible=1");
+  }
+
   const gate = await getPlanGate(session.organizationId);
   const features = describePlanFeatures({
     featuresJson: plan.featuresJson,
@@ -163,7 +168,9 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
     audience: plan.audience,
   });
 
-  const isCurrentPlan = gate?.planSlug === plan.slug && gate.subscriptionStatus === "active";
+  const isCurrentPlan =
+    gate?.planSlug === plan.slug &&
+    ["active", "past_due"].includes(gate.subscriptionStatus);
   const isConsultOnly = isConsultOnlyPlan(plan);
   const consultUrl = `${marketing.whatsappUrl}${marketing.whatsappUrl.includes("?") ? "&" : "?"}text=${encodeURIComponent(
     `Olá! Tenho interesse no plano ${plan.name} da CotaCondo e gostaria de falar com um consultor.`,
@@ -304,7 +311,11 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
                 <div className="mt-5 flex items-baseline justify-between border-t border-black/5 pt-5">
                   <span className="font-semibold text-neutral-900">Total hoje</span>
                   <span className="text-xl font-bold text-neutral-900">
-                    {isConsultOnly ? "—" : formatPriceCents(plan.priceCents)}
+                    {isCurrentPlan
+                      ? "Já contratado"
+                      : isConsultOnly
+                        ? "—"
+                        : formatPriceCents(plan.priceCents)}
                   </span>
                 </div>
 
@@ -321,7 +332,11 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
                 ) : null}
 
                 <div className="mt-6">
-                  {isConsultOnly ? (
+                  {isCurrentPlan ? (
+                    <Button size="lg" className="w-full" disabled>
+                      Plano já ativo
+                    </Button>
+                  ) : isConsultOnly ? (
                     <a href={consultUrl} target="_blank" rel="noreferrer">
                       <Button size="lg" className="w-full gap-2">
                         <MessageCircle className="h-4 w-4" />
@@ -329,12 +344,16 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
                       </Button>
                     </a>
                   ) : (
-                    <form action={formAction(startPlanCheckoutAction)}>
+                    <ActionForm
+                      action={startPlanCheckoutFormAction}
+                      size="lg"
+                      submitLabel={plan.isFree ? "Ativar plano Free" : "Ir para pagamento"}
+                      pendingLabel={
+                        plan.isFree ? "Ativando plano..." : "Abrindo pagamento..."
+                      }
+                    >
                       <input type="hidden" name="planSlug" value={plan.slug} />
-                      <Button type="submit" size="lg" className="w-full">
-                        {plan.isFree ? "Ativar plano Free" : "Ir para pagamento"}
-                      </Button>
-                    </form>
+                    </ActionForm>
                   )}
                 </div>
 

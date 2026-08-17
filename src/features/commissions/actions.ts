@@ -83,6 +83,20 @@ export async function createCommissionAgreementAction(formData: FormData): Promi
   }
 }
 
+export async function createCommissionAgreementFormAction(
+  _state: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  return createCommissionAgreementAction(formData);
+}
+
+export async function updateCommissionAgreementFormAction(
+  _state: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  return updateCommissionAgreementAction(formData);
+}
+
 export async function updateCommissionAgreementAction(formData: FormData): Promise<ActionResult> {
   try {
     const session = await requireAuthorizedSession({
@@ -90,6 +104,11 @@ export async function updateCommissionAgreementAction(formData: FormData): Promi
       roles: [MemberRole.master],
       href: "/app/financeiro",
     });
+
+    const gate = await getPlanGate(session.organizationId);
+    if (!can(gate, "commissions")) {
+      return { ok: false, message: "Comissões disponíveis no plano Premium." };
+    }
 
     const id = String(formData.get("id") ?? "");
     const feeType = String(formData.get("feeType") ?? "");

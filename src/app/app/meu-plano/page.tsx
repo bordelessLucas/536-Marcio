@@ -7,14 +7,34 @@ import { SupplierCategoriesForm } from "@/features/supplier/components/SupplierC
 import {
   formatPriceCents,
   getPlanGate,
-  listActivePlans,
+  listActivePlansForOrganization,
 } from "@/features/billing/plan-gate";
+import { isConsultOnlyPlan } from "@/features/billing/plan-features";
 import { getActiveSubscription } from "@/features/billing/subscriptions";
-import { startCategoryAddonCheckoutAction } from "@/features/billing/actions";
-import { formAction } from "@/lib/form-action";
+import { startCategoryAddonCheckoutFormAction } from "@/features/billing/actions";
+import { ActionForm } from "@/components/ui/ActionForm";
 import { Button } from "@/components/ui/Button";
 
-export default async function MeuPlanoPage() {
+type PageProps = {
+  searchParams: Promise<{
+    activated?: string;
+    current?: string;
+    downgrade?: string;
+    addon?: string;
+    incompatible?: string;
+  }>;
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  active: "Ativo",
+  past_due: "Pagamento pendente",
+  pending: "Aguardando pagamento",
+  canceled: "Cancelado",
+  failed: "Falhou",
+  paid: "Pago",
+};
+
+export default async function MeuPlanoPage({ searchParams }: PageProps) {
   const session = await requireAuthorizedSession({
     types: [
       OrganizationType.fornecedor,
@@ -24,11 +44,23 @@ export default async function MeuPlanoPage() {
     href: "/app/meu-plano",
   });
 
-  const gate = await getPlanGate(session.organizationId);
-  const subscription = await getActiveSubscription(session.organizationId);
-  const audience =
-    session.organizationType === OrganizationType.fornecedor ? "fornecedor" : "solicitante";
-  const catalogPlans = await listActivePlans(audience);
+  const [params, gate, subscription, catalogPlans] = await Promise.all([
+    searchParams,
+    getPlanGate(session.organizationId),
+    getActiveSubscription(session.organizationId),
+    listActivePlansForOrganization(session.organizationType),
+  ]);
+  const notice = params.activated
+    ? "Plano ativado com sucesso."
+    : params.current
+      ? "Este plano já está ativo na sua organização."
+      : params.downgrade === "scheduled"
+        ? "Mudança agendada para o fim do ciclo atual."
+        : params.incompatible
+          ? "O plano acessado não está disponível para este perfil."
+        : params.addon === "canceled"
+          ? "Contratação de categorias adicionais cancelada."
+          : null;
 
   if (session.organizationType === OrganizationType.fornecedor) {
     const [plan, catalog, settings] = await Promise.all([
@@ -66,6 +98,7 @@ export default async function MeuPlanoPage() {
           status={subscription?.status ?? "—"}
           pending={subscription?.pendingPlan?.name}
         />
+        <PlanNotice message={notice} />
 
         <div className="grid gap-4 md:grid-cols-3">
           <Stat
@@ -113,7 +146,13 @@ export default async function MeuPlanoPage() {
             <p className="mt-1 text-sm text-neutral-600">
               Preço unitário {formatPriceCents(addonPrice)} × quantidade (checkout sandbox).
             </p>
-            <form action={formAction(startCategoryAddonCheckoutAction)} className="mt-4 space-y-3">
+            <ActionForm
+              action={startCategoryAddonCheckoutFormAction}
+              className="mt-4 space-y-3"
+              submitLabel="Contratar categorias extras"
+              pendingLabel="Abrindo pagamento..."
+              disabled={availableAddon.length === 0}
+            >
               <label className="block text-sm">
                 Quantidade
                 <input
@@ -133,16 +172,15 @@ export default async function MeuPlanoPage() {
                   </label>
                 ))}
               </div>
-              <Button type="submit" disabled={availableAddon.length === 0}>
-                Contratar categorias extras
-              </Button>
-            </form>
+            </ActionForm>
           </div>
         ) : null}
 
         <UpgradeCatalog
           plans={catalogPlans}
           currentSlug={gate?.planSlug}
+          currentPriceCents={gate?.priceCents}
+          pendingSlug={subscription?.pendingPlan?.slug}
           title="Upgrade de plano"
         />
       </div>
@@ -156,6 +194,7 @@ export default async function MeuPlanoPage() {
         status={subscription?.status ?? "—"}
         pending={subscription?.pendingPlan?.name}
       />
+      <PlanNotice message={notice} />
       <div className="grid gap-4 md:grid-cols-3">
         <Stat
           label="Franquia mensal"
@@ -176,6 +215,8 @@ export default async function MeuPlanoPage() {
       <UpgradeCatalog
         plans={catalogPlans}
         currentSlug={gate?.planSlug}
+        currentPriceCents={gate?.priceCents}
+        pendingSlug={subscription?.pendingPlan?.slug}
         title="Planos disponíveis"
       />
       {session.organizationType === OrganizationType.sindico ? (
@@ -207,10 +248,19 @@ function Header({
       <p className="text-sm font-semibold uppercase tracking-wide text-[#9333EA]">Meu Plano</p>
       <h1 className="mt-1 text-3xl font-bold text-neutral-900">{planName}</h1>
       <p className="mt-2 text-neutral-600">
-        Status: <span className="font-medium">{status}</span>
+        Status: <span className="font-medium">{STATUS_LABELS[status] ?? status}</span>
         {pending ? ` · Downgrade pendente para ${pending}` : ""}
       </p>
     </div>
+  );
+}
+
+function PlanNotice({ message }: { message: string | null }) {
+  if (!message) return null;
+  return (
+    <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+      {message}
+    </p>
   );
 }
 
@@ -227,6 +277,8 @@ function Stat({ label, value, hint }: { label: string; value: string; hint: stri
 function UpgradeCatalog({
   plans,
   currentSlug,
+  currentPriceCents,
+  pendingSlug,
   title,
 }: {
   plans: Array<{
@@ -238,6 +290,8 @@ function UpgradeCatalog({
     isFree: boolean;
   }>;
   currentSlug?: string;
+  currentPriceCents?: number;
+  pendingSlug?: string | null;
   title: string;
 }) {
   return (
@@ -246,22 +300,51 @@ function UpgradeCatalog({
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {plans.map((plan) => {
           const isCurrent = plan.slug === currentSlug;
+          const isPending = plan.slug === pendingSlug;
+          const consultOnly = isConsultOnlyPlan(plan);
+          const isUpgrade =
+            currentPriceCents != null && plan.priceCents > currentPriceCents;
+          const actionLabel = consultOnly
+            ? "Falar com consultor"
+            : plan.isFree
+              ? currentPriceCents && currentPriceCents > 0
+                ? "Agendar mudança"
+                : "Ativar plano"
+              : isUpgrade
+                ? "Fazer upgrade"
+                : "Contratar";
           return (
             <div
               key={plan.id}
-              className="flex flex-col justify-between rounded-2xl border border-black/5 p-4"
+              className={`flex flex-col justify-between rounded-2xl border p-4 transition ${
+                isCurrent
+                  ? "border-emerald-200 bg-emerald-50/40"
+                  : "border-black/5 bg-white hover:border-[#9333EA]/25"
+              }`}
             >
               <div>
                 <p className="font-semibold text-neutral-900">{plan.name}</p>
                 <p className="mt-1 text-sm text-neutral-500">{plan.description}</p>
-                <p className="mt-3 text-xl font-bold">{formatPriceCents(plan.priceCents)}/mês</p>
+                <p className="mt-3 text-xl font-bold">
+                  {consultOnly
+                    ? "Sob consulta"
+                    : plan.isFree
+                      ? "Grátis"
+                      : `${formatPriceCents(plan.priceCents)}/mês`}
+                </p>
               </div>
               {isCurrent ? (
-                <p className="mt-3 text-sm font-medium text-emerald-700">Plano atual</p>
+                <p className="mt-3 inline-flex w-fit rounded-lg bg-emerald-100 px-2.5 py-1.5 text-sm font-semibold text-emerald-800">
+                  Plano atual
+                </p>
+              ) : isPending ? (
+                <p className="mt-3 inline-flex w-fit rounded-lg bg-amber-100 px-2.5 py-1.5 text-sm font-semibold text-amber-800">
+                  Mudança agendada
+                </p>
               ) : (
                 <Link href={`/checkout?plan=${plan.slug}`} className="mt-3">
                   <Button type="button" size="sm" className="w-full">
-                    {plan.isFree ? "Mudar para Free" : "Contratar"}
+                    {actionLabel}
                   </Button>
                 </Link>
               )}

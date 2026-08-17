@@ -3,6 +3,7 @@ import { requireAuthorizedSession } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
 import { toggleFavoriteSupplierAction } from "@/features/favorites/actions";
 import { Button } from "@/components/ui/Button";
+import { can, getPlanGate } from "@/features/billing/plan-gate";
 
 export default async function FavoritosPage() {
   const session = await requireAuthorizedSession({
@@ -11,23 +12,8 @@ export default async function FavoritosPage() {
     href: "/app/favoritos",
   });
 
-  const subscription = await prisma.subscription.findFirst({
-    where: { organizationId: session.organizationId, status: "active" },
-    include: { plan: true },
-    orderBy: { createdAt: "desc" },
-  });
-
-  let features: { favorites?: boolean } = {};
-  try {
-    features = JSON.parse(subscription?.plan.featuresJson ?? "{}") as { favorites?: boolean };
-  } catch {
-    features = {};
-  }
-
-  const isPremium =
-    Boolean(features.favorites) || subscription?.plan.slug === "adm-premium";
-
-  if (!isPremium) {
+  const gate = await getPlanGate(session.organizationId);
+  if (!can(gate, "favorites")) {
     return (
       <div className="space-y-4">
         <h1 className="text-3xl font-bold text-neutral-900">Favoritos</h1>

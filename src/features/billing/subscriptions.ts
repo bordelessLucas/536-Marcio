@@ -2,8 +2,10 @@ import { createHash, randomUUID } from "crypto";
 import type { Plan, Subscription } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
+import { AppError } from "@/lib/errors";
 import { getPaymentProvider } from "@/features/billing/payment-provider";
 import { calculateProrationCents } from "@/features/billing/money";
+import { isPlanAvailableForOrganization } from "@/features/billing/plan-catalog";
 
 function addMonths(date: Date, months: number): Date {
   const next = new Date(date);
@@ -217,16 +219,41 @@ export async function createPlanCheckout(input: {
 }) {
   await applyPendingDowngrades();
 
-  const plan = await prisma.plan.findFirst({
-    where: { slug: input.planSlug, isActive: true },
-  });
-  if (!plan) throw new Error("Plano não encontrado.");
+  const [plan, org, current] = await Promise.all([
+    prisma.plan.findFirst({
+      where: { slug: input.planSlug, isActive: true },
+    }),
+    prisma.organization.findUniqueOrThrow({
+      where: { id: input.organizationId },
+    }),
+    getActiveSubscription(input.organizationId),
+  ]);
+  if (!plan) throw new AppError("Plano não encontrado.");
 
-  const org = await prisma.organization.findUniqueOrThrow({
-    where: { id: input.organizationId },
-  });
+  if (
+    input.kind !== "migration" &&
+    !isPlanAvailableForOrganization(org.type, plan.slug)
+  ) {
+    throw new AppError(
+      "Este plano não está disponível para o perfil da sua organização.",
+    );
+  }
 
-  const current = await getActiveSubscription(input.organizationId);
+  if (input.kind !== "migration" && current?.planId === plan.id) {
+    return {
+      checkoutId: null as string | null,
+      checkoutUrl: "/app/meu-plano?current=1",
+      activated: true as const,
+      scheduled: false as const,
+      plan,
+      result: { status: "already_active" as const, plan },
+    };
+  }
+
+  if (!plan.isFree && plan.priceCents === 0) {
+    throw new AppError("Este plano é contratado com uma proposta comercial personalizada.");
+  }
+
   const isUpgrade =
     !current ||
     plan.priceCents > current.plan.priceCents ||

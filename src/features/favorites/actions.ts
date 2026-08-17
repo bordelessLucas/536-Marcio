@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuthorizedSession } from "@/lib/auth/guards";
 import { toPublicErrorMessage } from "@/lib/errors";
 import { writeAuditLog } from "@/lib/audit";
+import { can, getPlanGate } from "@/features/billing/plan-gate";
 
 export type ActionResult = { ok: boolean; message?: string };
 
@@ -16,23 +17,8 @@ async function requireAdmPremium() {
     href: "/app/favoritos",
   });
 
-  const subscription = await prisma.subscription.findFirst({
-    where: { organizationId: session.organizationId, status: "active" },
-    include: { plan: true },
-    orderBy: { createdAt: "desc" },
-  });
-
-  let features: { favorites?: boolean; partnerships?: boolean } = {};
-  try {
-    features = JSON.parse(subscription?.plan.featuresJson ?? "{}") as {
-      favorites?: boolean;
-      partnerships?: boolean;
-    };
-  } catch {
-    features = {};
-  }
-
-  if (!features.favorites && !features.partnerships && subscription?.plan.slug !== "adm-premium") {
+  const gate = await getPlanGate(session.organizationId);
+  if (!can(gate, "favorites")) {
     return { session: null as null, blocked: true as const };
   }
 

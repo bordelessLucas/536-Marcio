@@ -22,6 +22,7 @@ const BASIC_FEATURES = [
 const PREMIUM_FEATURES = [
   ...BASIC_FEATURES,
   "Gestão de Parcerias",
+  "Comissionamento por fornecedor",
   "SLA de solicitações",
   "Gestão do processo",
 ] as const;

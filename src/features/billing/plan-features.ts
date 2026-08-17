@@ -1,4 +1,7 @@
-import type { PlanFeatures } from "@/features/billing/plan-gate";
+import {
+  parsePlanFeatures,
+  type PlanFeatures,
+} from "@/features/billing/plan-gate";
 
 const FEATURE_LABELS: Record<string, string> = {
   whitelabel: "Comparativo whitelabel com a sua marca",
@@ -30,14 +33,6 @@ const BASE_FEATURES: Record<"solicitante" | "fornecedor", string[]> = {
 /** Planos com preço zerado que não são gratuitos são negociados caso a caso. */
 export function isConsultOnlyPlan(plan: { isFree: boolean; priceCents: number }): boolean {
   return !plan.isFree && plan.priceCents === 0;
-}
-
-export function parsePlanFeatures(featuresJson: string | null | undefined): PlanFeatures {
-  try {
-    return JSON.parse(featuresJson || "{}") as PlanFeatures;
-  } catch {
-    return {};
-  }
 }
 
 export function describePlanFeatures(input: {

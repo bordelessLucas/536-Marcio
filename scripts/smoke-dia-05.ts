@@ -47,6 +47,18 @@ async function main() {
   console.log("Migração Free bloqueada OK");
 
   // Checkout upgrade sandbox
+  const sindicoFree = await prisma.plan.findUniqueOrThrow({
+    where: { slug: "sindico-free" },
+  });
+  await prisma.subscription.updateMany({
+    where: { organizationId: sindico.id, status: { in: ["active", "past_due"] } },
+    data: {
+      planId: sindicoFree.id,
+      status: "active",
+      cancelAtPeriodEnd: false,
+      pendingPlanId: null,
+    },
+  });
   const checkout = await createPlanCheckout({
     organizationId: sindico.id,
     userId: sindicoUser.id,
@@ -60,6 +72,33 @@ async function main() {
     throw new Error(`Esperado sindico-pago, got ${gatePago?.planSlug}`);
   }
   console.log("Checkout → assinatura ativa OK");
+
+  const repeatedCheckout = await createPlanCheckout({
+    organizationId: sindico.id,
+    userId: sindicoUser.id,
+    planSlug: "sindico-pago",
+    kind: "plan",
+  });
+  if (repeatedCheckout.checkoutId) {
+    throw new Error("Plano atual não deveria gerar uma nova cobrança");
+  }
+  console.log("Recompra do plano atual bloqueada OK");
+
+  let incompatibleBlocked = false;
+  try {
+    await createPlanCheckout({
+      organizationId: adm.id,
+      userId: admUser.id,
+      planSlug: "sindico-pago",
+      kind: "plan",
+    });
+  } catch (error) {
+    incompatibleBlocked = String(error).includes("perfil");
+  }
+  if (!incompatibleBlocked) {
+    throw new Error("Plano de síndico deveria ser bloqueado para administradora");
+  }
+  console.log("Plano incompatível com perfil bloqueado OK");
 
   // Parceria trava Free
   const settings = await prisma.platformSettings.findUniqueOrThrow({ where: { id: "default" } });

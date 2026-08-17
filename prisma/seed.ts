@@ -219,7 +219,7 @@ async function main() {
         whitelabel: true,
         partnerships: true,
         favorites: true,
-        commissions: false,
+        commissions: true,
         sla: true,
       }),
     },

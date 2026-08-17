@@ -1,3 +1,5 @@
+import { unstable_rethrow } from "next/navigation";
+
 export class AppError extends Error {
   constructor(
     message: string,
@@ -9,7 +11,23 @@ export class AppError extends Error {
   }
 }
 
+function isInternalErrorMessage(message: string): boolean {
+  return /NEXT_|prisma|EPERM|ENOENT|Invariant|digest|query_engine|SQLITE/i.test(
+    message,
+  );
+}
+
+function isUserFacingErrorMessage(message: string): boolean {
+  if (!message || message.length > 220) return false;
+  if (isInternalErrorMessage(message)) return false;
+  return /[áàâãéêíóôõúç]|plano|login|sessão|pagamento|organização|fornecedor|cotação|migração|não |obrigatório|Asaas|checkout/i.test(
+    message,
+  );
+}
+
 export function toPublicErrorMessage(error: unknown): string {
+  unstable_rethrow(error);
+
   if (error instanceof AppError) {
     return error.message;
   }
@@ -25,5 +43,10 @@ export function toPublicErrorMessage(error: unknown): string {
     return error.message;
   }
 
+  if (error instanceof Error && isUserFacingErrorMessage(error.message)) {
+    return error.message;
+  }
+
+  console.error("[action]", error);
   return "Não foi possível concluir a operação. Tente novamente.";
 }

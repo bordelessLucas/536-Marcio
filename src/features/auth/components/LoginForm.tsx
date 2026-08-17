@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/Button";
 
 const DEMO_PASSWORD = "123456";
 
+function isSafeNextPath(path: string): boolean {
+  return (
+    (path.startsWith("/app") || path.startsWith("/checkout")) &&
+    !path.startsWith("//") &&
+    !path.includes("://")
+  );
+}
+
 const DEMO_ACCOUNTS = [
   { email: "sindico@demo.cotacondo.com.br", label: "Síndico" },
   { email: "fornecedor@demo.cotacondo.com.br", label: "Fornecedor" },
@@ -37,10 +45,12 @@ export function LoginForm() {
               setResult(response);
               return;
             }
-            router.push(nextPath.startsWith("/app") ? nextPath : "/app");
+            const destination = isSafeNextPath(nextPath) ? nextPath : "/app";
+            router.push(destination);
             router.refresh();
           } catch {
-            router.push(nextPath.startsWith("/app") ? nextPath : "/app");
+            const destination = isSafeNextPath(nextPath) ? nextPath : "/app";
+            router.push(destination);
             router.refresh();
           }
         });

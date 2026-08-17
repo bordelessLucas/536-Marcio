@@ -1,4 +1,7 @@
+import { cache } from "react";
+import type { OrganizationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getPlanSlugsForOrganization } from "@/features/billing/plan-catalog";
 
 export type PlanFeatureKey =
   | "whitelabel"
@@ -7,7 +10,11 @@ export type PlanFeatureKey =
   | "commissions"
   | "sla"
   | "crm"
-  | "partnershipEligible";
+  | "partnershipEligible"
+  | "cotaService"
+  | "rif"
+  | "managedQuotation"
+  | "vip";
 
 export type PlanFeatures = Partial<Record<PlanFeatureKey, boolean>> & {
   categoriesIncluded?: number;
@@ -27,7 +34,7 @@ export type PlanGateContext = {
   subscriptionStatus: string;
 };
 
-function parseFeatures(json: string | null | undefined): PlanFeatures {
+export function parsePlanFeatures(json: string | null | undefined): PlanFeatures {
   try {
     return JSON.parse(json || "{}") as PlanFeatures;
   } catch {
@@ -35,20 +42,26 @@ function parseFeatures(json: string | null | undefined): PlanFeatures {
   }
 }
 
-export async function getPlanGate(organizationId: string): Promise<PlanGateContext | null> {
-  const [subscription, override] = await Promise.all([
+export const getPlanGate = cache(async (organizationId: string): Promise<PlanGateContext | null> => {
+  const [activeSubscription, pendingSubscription, override] = await Promise.all([
     prisma.subscription.findFirst({
-      where: { organizationId, status: { in: ["active", "past_due", "pending"] } },
+      where: { organizationId, status: { in: ["active", "past_due"] } },
+      include: { plan: true, pendingPlan: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.subscription.findFirst({
+      where: { organizationId, status: "pending" },
       include: { plan: true, pendingPlan: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.planOverride.findUnique({ where: { organizationId } }),
   ]);
 
+  const subscription = activeSubscription ?? pendingSubscription;
   if (!subscription) return null;
 
-  const planFeatures = parseFeatures(subscription.plan.featuresJson);
-  const overrideFeatures = parseFeatures(override?.featuresJson);
+  const planFeatures = parsePlanFeatures(subscription.plan.featuresJson);
+  const overrideFeatures = parsePlanFeatures(override?.featuresJson);
 
   return {
     organizationId,
@@ -61,14 +74,12 @@ export async function getPlanGate(organizationId: string): Promise<PlanGateConte
     overrideFeatures,
     subscriptionStatus: subscription.status,
   };
-}
+});
 
 export function can(gate: PlanGateContext | null, feature: PlanFeatureKey): boolean {
   if (!gate) return false;
-  if (gate.subscriptionStatus !== "active" && gate.subscriptionStatus !== "past_due") {
-    // past_due still has features until canceled; pending does not unlock paid features
-    if (gate.subscriptionStatus === "pending") return false;
-  }
+  // past_due mantém acesso durante o período de regularização.
+  if (!["active", "past_due"].includes(gate.subscriptionStatus)) return false;
   return Boolean(gate.features[feature]);
 }
 
@@ -89,6 +100,15 @@ export async function listActivePlans(audience?: "solicitante" | "fornecedor") {
       ...(audience ? { audience } : { audience: { in: ["solicitante", "fornecedor"] } }),
     },
     orderBy: [{ audience: "asc" }, { sortOrder: "asc" }, { priceCents: "asc" }],
+  });
+}
+
+export async function listActivePlansForOrganization(organizationType: OrganizationType) {
+  const slugs = getPlanSlugsForOrganization(organizationType);
+  if (slugs.length === 0) return [];
+  return prisma.plan.findMany({
+    where: { isActive: true, slug: { in: [...slugs] } },
+    orderBy: [{ sortOrder: "asc" }, { priceCents: "asc" }],
   });
 }
 
