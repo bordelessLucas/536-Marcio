@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { OrganizationType } from "@prisma/client";
+import { OrganizationType, SupplierPipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuthorizedSession } from "@/lib/auth/guards";
 import { toPublicErrorMessage } from "@/lib/errors";
@@ -18,6 +18,10 @@ import {
   getSupplierFranchiseBalance,
 } from "@/features/supplier/franchise";
 import { markOverdueCompliance } from "@/features/compliance/expire";
+import {
+  isSupplierPipelineStage,
+  type SupplierPipelineStageValue,
+} from "@/features/opportunities/pipeline";
 
 export type ActionResult = { ok: boolean; message?: string; proposalId?: string };
 
@@ -26,6 +30,47 @@ async function requireSupplier() {
     types: [OrganizationType.fornecedor],
     href: "/app/oportunidades",
   });
+}
+
+export async function moveSupplierOpportunityAction(input: {
+  inviteId: string;
+  stage: SupplierPipelineStageValue;
+}): Promise<ActionResult> {
+  try {
+    const session = await requireSupplier();
+    const inviteId = input.inviteId.trim();
+    if (!inviteId || !isSupplierPipelineStage(input.stage)) {
+      return { ok: false, message: "Movimentação inválida." };
+    }
+
+    const invite = await prisma.quotationInvite.findFirst({
+      where: { id: inviteId, supplierOrgId: session.organizationId },
+      select: { id: true, supplierPipelineStage: true },
+    });
+    if (!invite) return { ok: false, message: "Oportunidade não encontrada." };
+
+    const stage = input.stage as SupplierPipelineStage;
+    await prisma.quotationInvite.update({
+      where: { id: invite.id },
+      data: { supplierPipelineStage: stage },
+    });
+
+    await writeAuditLog({
+      userId: session.userId,
+      action: "supplier.pipeline_moved",
+      entityType: "quotation_invite",
+      entityId: invite.id,
+      metadata: {
+        previousStage: invite.supplierPipelineStage,
+        stage,
+      },
+    });
+
+    revalidatePath("/app/oportunidades");
+    return { ok: true, message: "Etapa atualizada." };
+  } catch (error) {
+    return { ok: false, message: toPublicErrorMessage(error) };
+  }
 }
 
 export async function declineInviteAction(formData: FormData): Promise<ActionResult> {
@@ -52,6 +97,7 @@ export async function declineInviteAction(formData: FormData): Promise<ActionRes
       where: { id: invite.id },
       data: {
         status: "declinado",
+        supplierPipelineStage: SupplierPipelineStage.perdida,
         declineReason: parsed.data.reason || null,
         declinedAt: new Date(),
       },
@@ -139,7 +185,11 @@ export async function acceptInviteAction(formData: FormData): Promise<ActionResu
 
     await prisma.quotationInvite.update({
       where: { id: invite.id },
-      data: { status: "aceito", acceptedAt: new Date() },
+      data: {
+        status: "aceito",
+        supplierPipelineStage: SupplierPipelineStage.em_andamento,
+        acceptedAt: new Date(),
+      },
     });
 
     revalidatePath("/app/oportunidades");
@@ -235,7 +285,16 @@ export async function submitProposalAction(formData: FormData): Promise<ActionRe
       if (invite.status === "pendente") {
         await tx.quotationInvite.update({
           where: { id: invite.id },
-          data: { status: "aceito", acceptedAt: new Date() },
+          data: {
+            status: "aceito",
+            supplierPipelineStage: SupplierPipelineStage.proposta_enviada,
+            acceptedAt: new Date(),
+          },
+        });
+      } else {
+        await tx.quotationInvite.update({
+          where: { id: invite.id },
+          data: { supplierPipelineStage: SupplierPipelineStage.proposta_enviada },
         });
       }
 

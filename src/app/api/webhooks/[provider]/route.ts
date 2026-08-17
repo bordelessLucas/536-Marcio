@@ -17,9 +17,12 @@ export async function POST(
     return NextResponse.json({ ok: false, message: "Provider inválido" }, { status: 400 });
   }
 
-  const signature = request.headers.get("x-webhook-signature");
+  const signature =
+    provider.name === "asaas"
+      ? request.headers.get("asaas-access-token")
+      : request.headers.get("x-webhook-signature");
   const expected = process.env.PAYMENT_WEBHOOK_SECRET;
-  if (expected && signature !== expected) {
+  if (provider.name === "sandbox" && expected && signature !== expected) {
     return NextResponse.json({ ok: false, message: "Assinatura inválida" }, { status: 401 });
   }
 
@@ -69,7 +72,7 @@ export async function POST(
 
   if (parsed.status === "paid") {
     await fulfillCheckoutPaid(checkout.id);
-  } else {
+  } else if (parsed.status !== "pending") {
     await markCheckoutFailed(checkout.id, parsed.status);
   }
 

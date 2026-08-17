@@ -12,6 +12,12 @@ import {
 import { markOverdueCompliance } from "@/features/compliance/expire";
 import { Button } from "@/components/ui/Button";
 import { acceptInviteAction } from "@/features/opportunities/actions";
+import {
+  SupplierKanbanBoard,
+  type SupplierKanbanCard,
+} from "@/features/opportunities/components/SupplierKanbanBoard";
+import { deriveSupplierPipelineStage } from "@/features/opportunities/pipeline";
+import { formatPriceCents } from "@/features/billing/money";
 
 type PageProps = {
   searchParams: Promise<{
@@ -23,28 +29,6 @@ type PageProps = {
     inviteId?: string;
   }>;
 };
-
-type KanbanColumn =
-  | "Pendentes"
-  | "Em Andamento"
-  | "Enviadas"
-  | "Em Negociação"
-  | "Aprovadas"
-  | "Recusadas";
-
-function kanbanColumn(invite: {
-  status: string;
-  proposal: { status: string } | null;
-}): KanbanColumn {
-  if (invite.status === "declinado") return "Recusadas";
-  if (invite.status === "pendente") return "Pendentes";
-  if (!invite.proposal) return "Em Andamento";
-  if (invite.proposal.status === "enviada") return "Enviadas";
-  if (invite.proposal.status === "em_negociacao") return "Em Negociação";
-  if (invite.proposal.status === "aprovada") return "Aprovadas";
-  if (invite.proposal.status === "recusada") return "Recusadas";
-  return "Em Andamento";
-}
 
 export default async function OportunidadesPage({ searchParams }: PageProps) {
   const session = await requireAuthorizedSession({
@@ -114,22 +98,26 @@ export default async function OportunidadesPage({ searchParams }: PageProps) {
     }),
   ]);
 
-  const columns: KanbanColumn[] = [
-    "Pendentes",
-    "Em Andamento",
-    "Enviadas",
-    "Em Negociação",
-    "Aprovadas",
-    "Recusadas",
-  ];
-
-  const grouped = Object.fromEntries(columns.map((col) => [col, [] as typeof invites])) as Record<
-    KanbanColumn,
-    typeof invites
-  >;
-  for (const invite of invites) {
-    grouped[kanbanColumn(invite)].push(invite);
-  }
+  const kanbanCards: SupplierKanbanCard[] = invites.map((invite) => {
+    const firstCondition = invite.proposal?.conditions[0];
+    return {
+      id: invite.id,
+      publicId: invite.quotation.publicId,
+      description: invite.quotation.description,
+      categoryName: invite.quotation.category.name,
+      serviceName: invite.quotation.serviceItem.name,
+      condominiumName: invite.quotation.condominium.name,
+      urgency: invite.quotation.urgency,
+      createdAt: invite.createdAt.toISOString(),
+      proposalValue: firstCondition ? formatPriceCents(firstCondition.amountCents) : null,
+      officialStatus: invite.proposal?.status ?? invite.status,
+      stage: deriveSupplierPipelineStage({
+        savedStage: invite.supplierPipelineStage,
+        inviteStatus: invite.status,
+        proposalStatus: invite.proposal?.status,
+      }),
+    };
+  });
 
   const focusInvite = focusInviteId
     ? invites.find((invite) => invite.id === focusInviteId)
@@ -230,30 +218,7 @@ export default async function OportunidadesPage({ searchParams }: PageProps) {
       </form>
 
       {view === "kanban" ? (
-        <div className="grid gap-3 overflow-x-auto xl:grid-cols-6">
-          {columns.map((column) => (
-            <div key={column} className="min-w-[220px] rounded-2xl border border-black/5 bg-black/[0.02] p-3">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                {column} ({grouped[column].length})
-              </p>
-              <div className="space-y-2">
-                {grouped[column].map((invite) => (
-                  <Link
-                    key={invite.id}
-                    href={`/app/oportunidades?view=lista&inviteId=${invite.id}`}
-                    className="block rounded-xl border border-black/5 bg-white p-3 text-sm hover:border-[#9333EA]/30"
-                  >
-                    <p className="font-semibold text-neutral-900">{invite.quotation.publicId}</p>
-                    <p className="mt-1 text-xs text-neutral-500">{invite.quotation.category.name}</p>
-                    <p className="mt-1 line-clamp-2 text-xs text-neutral-600">
-                      {invite.quotation.description}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <SupplierKanbanBoard initialCards={kanbanCards} />
       ) : (
         <div className="space-y-4">
           {invites.map((invite) => {

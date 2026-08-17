@@ -45,6 +45,18 @@ Senha: `123456` (Firebase Auth)
 - `npm run smoke:dia-02` / `npm run smoke:dia-03`
 - `npm run jobs:compliance-expire` — marca docs vencidos como `em_atraso` (sem Cloud Functions)
 
+### Pagamentos Asaas
+
+O adapter Asaas cria clientes por `organizationId`, assinaturas mensais para
+planos e cobranças avulsas para adicionais. Em desenvolvimento, mantenha
+`PAYMENT_PROVIDER=sandbox` para não gerar cobranças reais.
+
+Em produção, configure `PAYMENT_PROVIDER=asaas`,
+`ASAAS_ENVIRONMENT=production`, `ASAAS_PRODUCTION_API_KEY` e
+`ASAAS_WEBHOOK_TOKEN`. Após publicar uma URL HTTPS, rode
+`npm run setup:asaas-webhook` para registrar
+`/api/webhooks/asaas`. O CPF/CNPJ da organização é obrigatório.
+
 ## Deploy (Spark-compatible)
 
 ### App Next.js → Vercel

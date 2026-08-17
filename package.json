@@ -23,6 +23,7 @@
   "sync:firestore": "tsx scripts/sync-firestore.ts",
     "smoke:dia-06": "tsx scripts/smoke-dia-06.ts",
     "smoke:cliente-feedback": "tsx scripts/smoke-cliente-feedback.ts",
+    "setup:asaas-webhook": "tsx scripts/setup-asaas-webhook.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

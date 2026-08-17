@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { OrganizationType } from "@prisma/client";
+import { OrganizationType, SupplierPipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuthorizedSession } from "@/lib/auth/guards";
 import { toPublicErrorMessage } from "@/lib/errors";
@@ -55,6 +55,10 @@ export async function startNegotiationAction(formData: FormData): Promise<Action
       await tx.proposal.updateMany({
         where: { id: { in: proposals.map((item) => item.id) } },
         data: { status: "em_negociacao" },
+      });
+      await tx.quotationInvite.updateMany({
+        where: { id: { in: proposals.map((item) => item.inviteId) } },
+        data: { supplierPipelineStage: SupplierPipelineStage.negociacao },
       });
       for (const proposal of proposals) {
         await tx.negotiationMessage.create({
@@ -216,6 +220,17 @@ export async function approveConditionAction(formData: FormData): Promise<Action
         },
         data: { status: "recusada" },
       });
+      await tx.quotationInvite.update({
+        where: { id: proposal.inviteId },
+        data: { supplierPipelineStage: SupplierPipelineStage.ganha },
+      });
+      await tx.quotationInvite.updateMany({
+        where: {
+          quotationId: proposal.quotationId,
+          id: { not: proposal.inviteId },
+        },
+        data: { supplierPipelineStage: SupplierPipelineStage.perdida },
+      });
       await tx.quotation.update({
         where: { id: proposal.quotationId },
         data: {
@@ -323,6 +338,10 @@ export async function approveOthersAction(formData: FormData): Promise<ActionRes
           status: { not: "recusada" },
         },
         data: { status: "recusada" },
+      });
+      await tx.quotationInvite.updateMany({
+        where: { quotationId: quotation.id },
+        data: { supplierPipelineStage: SupplierPipelineStage.perdida },
       });
       await tx.quotation.update({
         where: { id: quotation.id },

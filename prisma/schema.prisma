@@ -297,6 +297,15 @@ enum InviteStatus {
   expirado
 }
 
+enum SupplierPipelineStage {
+  nova
+  em_andamento
+  proposta_enviada
+  negociacao
+  ganha
+  perdida
+}
+
 enum ProposalStatus {
   enviada
   em_negociacao
@@ -312,6 +321,7 @@ model QuotationInvite {
   priorityTier         Int          @default(4)
   selectionReason      String?
   declineReason        String?
+  supplierPipelineStage SupplierPipelineStage?
   acceptedAt           DateTime?
   declinedAt           DateTime?
   createdAt            DateTime     @default(now())
@@ -323,6 +333,7 @@ model QuotationInvite {
 
   @@unique([quotationId, supplierOrgId])
   @@index([supplierOrgId, status])
+  @@index([supplierOrgId, supplierPipelineStage])
   @@index([quotationId])
 }
 

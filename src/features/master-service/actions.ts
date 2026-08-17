@@ -5,6 +5,7 @@ import {
   OrganizationType,
   ServiceAiApiMode,
   ServicePipelineStatus,
+  SupplierPipelineStage,
 } from "@prisma/client";
 import { requireAuthorizedSession } from "@/lib/auth/guards";
 import { prisma } from "@/lib/prisma";
@@ -282,6 +283,20 @@ export async function solicitanteConfirmAcceptAction(formData: FormData) {
       },
       data: { status: "recusada" },
     });
+    const approvedInvite = await tx.quotationInvite.findFirst({
+      where: { proposal: { id: quotation.approvedProposalId! } },
+      select: { id: true },
+    });
+    if (approvedInvite) {
+      await tx.quotationInvite.update({
+        where: { id: approvedInvite.id },
+        data: { supplierPipelineStage: SupplierPipelineStage.ganha },
+      });
+      await tx.quotationInvite.updateMany({
+        where: { quotationId, id: { not: approvedInvite.id } },
+        data: { supplierPipelineStage: SupplierPipelineStage.perdida },
+      });
+    }
     await tx.quotation.update({
       where: { id: quotationId },
       data: {

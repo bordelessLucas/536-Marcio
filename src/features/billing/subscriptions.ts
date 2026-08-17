@@ -15,6 +15,19 @@ function yearMonth(date = new Date()): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
+async function getCheckoutCustomer(organizationId: string, userId: string) {
+  const [organization, user] = await Promise.all([
+    prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }),
+    prisma.user.findUniqueOrThrow({ where: { id: userId } }),
+  ]);
+  return {
+    name: organization.name,
+    document: organization.document ?? "",
+    email: user.email,
+    phone: null,
+  };
+}
+
 export function makeIdempotencyKey(parts: string[]): string {
   return createHash("sha256").update(parts.join("|")).digest("hex").slice(0, 40);
 }
@@ -289,6 +302,7 @@ export async function createPlanCheckout(input: {
 
   const provider = getPaymentProvider();
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const customer = await getCheckoutCustomer(input.organizationId, input.userId);
   const session = await provider.createCheckout({
     amountCents: plan.priceCents,
     description: `Assinatura ${plan.name}`,
@@ -297,6 +311,8 @@ export async function createPlanCheckout(input: {
     idempotencyKey,
     successUrl: `${base}/checkout/sucesso?checkout=${checkout.id}`,
     cancelUrl: `${base}/checkout?plan=${plan.slug}&canceled=1`,
+    recurring: true,
+    customer,
   });
 
   await prisma.paymentCheckout.update({
@@ -387,6 +403,7 @@ export async function createCategoryAddonCheckout(input: {
 
   const provider = getPaymentProvider();
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const customer = await getCheckoutCustomer(input.organizationId, input.userId);
   const session = await provider.createCheckout({
     amountCents: total,
     description: `Categorias adicionais × ${input.quantity}`,
@@ -395,6 +412,7 @@ export async function createCategoryAddonCheckout(input: {
     idempotencyKey,
     successUrl: `${base}/checkout/sucesso?checkout=${checkout.id}`,
     cancelUrl: `${base}/app/meu-plano?addon=canceled`,
+    customer,
   });
 
   await prisma.paymentCheckout.update({
@@ -458,6 +476,7 @@ export async function createCustomBillingCheckout(input: {
 
   const provider = getPaymentProvider();
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const customer = await getCheckoutCustomer(input.organizationId, input.userId);
   const session = await provider.createCheckout({
     amountCents: input.amountCents,
     description,
@@ -466,6 +485,7 @@ export async function createCustomBillingCheckout(input: {
     idempotencyKey,
     successUrl: `${base}/checkout/sucesso?checkout=${checkout.id}`,
     cancelUrl: `${base}/app/plataforma?custom=canceled`,
+    customer,
   });
 
   await prisma.paymentCheckout.update({
@@ -496,6 +516,19 @@ export async function fulfillCheckoutPaid(checkoutId: string, userId?: string | 
   });
   if (!checkout) throw new Error("Checkout não encontrado.");
   if (checkout.status === "paid") {
+    // Assinaturas Asaas reutilizam o mesmo checkout externo em todos os ciclos.
+    // Um novo pagamento confirmado reativa a conta após eventual inadimplência.
+    if (checkout.provider === "asaas" && checkout.kind === "plan") {
+      const now = new Date();
+      await prisma.subscription.updateMany({
+        where: { organizationId: checkout.organizationId },
+        data: {
+          status: "active",
+          currentPeriodStart: now,
+          currentPeriodEnd: addMonths(now, 1),
+        },
+      });
+    }
     return { alreadyProcessed: true as const, checkout };
   }
 
@@ -613,7 +646,19 @@ export async function fulfillCheckoutPaid(checkoutId: string, userId?: string | 
 
 export async function markCheckoutFailed(checkoutId: string, status: "failed" | "canceled" | "past_due") {
   const checkout = await prisma.paymentCheckout.findUnique({ where: { id: checkoutId } });
-  if (!checkout || checkout.status === "paid") return checkout;
+  if (!checkout) return checkout;
+
+  // O checkout de uma assinatura recorrente já fica "paid" após o primeiro
+  // ciclo, mas cobranças futuras vencidas ainda devem bloquear o plano.
+  if (checkout.status === "paid") {
+    if (status === "past_due" && checkout.provider === "asaas") {
+      await prisma.subscription.updateMany({
+        where: { organizationId: checkout.organizationId, status: "active" },
+        data: { status: "past_due" },
+      });
+    }
+    return checkout;
+  }
 
   await prisma.paymentCheckout.update({
     where: { id: checkoutId },
