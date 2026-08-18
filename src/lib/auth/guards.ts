@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation";
-import type { MemberRole, OrganizationType } from "@prisma/client";
+import { MemberRole, type OrganizationType } from "@prisma/client";
 import { getSession, type SessionPayload } from "@/lib/auth/session";
 import { canAccessHref } from "@/features/navigation/menu";
+
+function defaultAppHome(session: SessionPayload): string {
+  return session.role === MemberRole.external_approver
+    ? "/app/aprovador/cotacoes"
+    : "/app";
+}
 
 export async function requireAuthorizedSession(options?: {
   types?: OrganizationType[];
@@ -13,16 +19,18 @@ export async function requireAuthorizedSession(options?: {
     redirect("/acesse?next=/app");
   }
 
+  const home = defaultAppHome(session);
+
   if (options?.href && !canAccessHref(options.href, session, { checkFeatures: false })) {
-    redirect("/app");
+    redirect(home);
   }
 
   if (options?.types && !options.types.includes(session.organizationType)) {
-    redirect("/app");
+    redirect(home);
   }
 
   if (options?.roles && !options.roles.includes(session.role)) {
-    redirect("/app");
+    redirect(home);
   }
 
   return session;

@@ -22,6 +22,7 @@ const DEMO_ACCOUNTS = [
   { email: "adm.master@demo.cotacondo.com.br", label: "Adm Master" },
   { email: "adm.operacional@demo.cotacondo.com.br", label: "Adm Operacional" },
   { email: "masterservice@demo.cotacondo.com.br", label: "Master Service" },
+  { email: "aprovador@demo.cotacondo.com.br", label: "Aprovador Externo" },
   { email: "admin@cotacondo.com.br", label: "Master Admin" },
 ] as const;
 

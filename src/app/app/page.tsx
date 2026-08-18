@@ -28,6 +28,9 @@ type DashCard = {
 export default async function AppHomePage() {
   const session = await getSession();
   if (!session) redirect("/acesse");
+  if (session.role === MemberRole.external_approver) {
+    redirect("/app/aprovador/cotacoes");
+  }
 
   const label = profileLabel(session.organizationType, session.role);
   const isSolicitante =

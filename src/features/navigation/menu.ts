@@ -3,6 +3,7 @@ import type { PlanFeatureKey, PlanFeatures } from "@/features/billing/plan-gate"
 import {
   Bell,
   Building2,
+  CalendarDays,
   ClipboardList,
   FileCheck2,
   Handshake,
@@ -27,6 +28,30 @@ export type NavItem = {
 };
 
 const ALL_ITEMS: NavItem[] = [
+  {
+    label: "Minhas Cotações",
+    href: "/app/aprovador/cotacoes",
+    icon: ClipboardList,
+    roles: [MemberRole.external_approver],
+  },
+  {
+    label: "Calendário",
+    href: "/app/aprovador/calendario",
+    icon: CalendarDays,
+    roles: [MemberRole.external_approver],
+  },
+  {
+    label: "Calendário",
+    href: "/app/calendario",
+    icon: CalendarDays,
+    types: [OrganizationType.administradora, OrganizationType.sindico],
+  },
+  {
+    label: "Calendário Service",
+    href: "/app/service/calendario",
+    icon: CalendarDays,
+    types: [OrganizationType.master_service],
+  },
   {
     label: "Dashboard",
     href: "/app",
@@ -181,6 +206,17 @@ export function canAccessNavItem(
   },
   options?: { checkFeatures?: boolean },
 ): boolean {
+  if (input.role === MemberRole.external_approver) {
+    if (item.href === "/app/notificacoes" || item.href === "/app/configuracoes") {
+      return true;
+    }
+    return item.roles?.includes(MemberRole.external_approver) ?? false;
+  }
+
+  if (item.roles?.includes(MemberRole.external_approver)) {
+    return false;
+  }
+
   if (item.types && !item.types.includes(input.organizationType)) {
     return false;
   }
@@ -209,6 +245,14 @@ export function canAccessHref(
   },
   options?: { checkFeatures?: boolean },
 ): boolean {
+  if (input.role === MemberRole.external_approver) {
+    return (
+      href.startsWith("/app/aprovador") ||
+      href === "/app/notificacoes" ||
+      href === "/app/configuracoes"
+    );
+  }
+
   const item = ALL_ITEMS.find((navItem) => navItem.href === href);
   if (!item) return true;
   return canAccessNavItem(item, input, options);
@@ -223,6 +267,7 @@ export function getNavItemsForSession(input: {
 }
 
 export function profileLabel(type: OrganizationType, role: MemberRole): string {
+  if (role === MemberRole.external_approver) return "Aprovador Externo";
   if (type === OrganizationType.master_admin) return "Master Admin";
   if (type === OrganizationType.master_service) return "Master Service";
   if (type === OrganizationType.fornecedor) return "Fornecedor";

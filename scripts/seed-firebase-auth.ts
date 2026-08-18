@@ -19,6 +19,7 @@ const DEMO_USERS = [
   "fornecedor@demo.cotacondo.com.br",
   "adm.master@demo.cotacondo.com.br",
   "adm.operacional@demo.cotacondo.com.br",
+  "aprovador@demo.cotacondo.com.br",
 ] as const;
 
 async function ensureFirebaseUser(email: string): Promise<string> {

@@ -786,12 +786,172 @@ async function main() {
         selectionReason: "Cota Service — base CotaCondo",
       },
     });
+
+    const approverUser = await upsertUser({
+      email: "aprovador@demo.cotacondo.com.br",
+      name: "Síndico Aprovador Demo",
+      passwordHash,
+    });
+    await ensureOrgMembership({
+      userId: approverUser.id,
+      organizationId: admOrg.id,
+      role: MemberRole.external_approver,
+    });
+    await prisma.externalApproverScope.upsert({
+      where: {
+        userId_condominiumId: {
+          userId: approverUser.id,
+          condominiumId: admCondo.id,
+        },
+      },
+      update: {
+        organizationId: admOrg.id,
+        serviceClientId: serviceClient.id,
+      },
+      create: {
+        userId: approverUser.id,
+        organizationId: admOrg.id,
+        condominiumId: admCondo.id,
+        serviceClientId: serviceClient.id,
+      },
+    });
+
+    const pendingApprovalQuotation = await prisma.quotation.upsert({
+      where: { publicId: "COT-SERVICE-000002" },
+      update: {
+        servicePipelineStatus: "em_analise",
+        masterAcceptedAt: new Date(),
+        rifVisibleToClient: true,
+        status: "em_negociacao",
+      },
+      create: {
+        publicId: "COT-SERVICE-000002",
+        organizationId: admOrg.id,
+        condominiumId: admCondo.id,
+        categoryId: segurosCategory.id,
+        serviceItemId: serviceItem.id,
+        urgency: "media",
+        description: "Cotação aguardando aprovação do síndico externo.",
+        minProposals: 2,
+        maxProposals: 6,
+        status: "em_negociacao",
+        createdByUserId: serviceMasterUser.id,
+        serviceClientId: serviceClient.id,
+        serviceManagedByOrgId: masterServiceOrg.id,
+        servicePipelineStatus: "em_analise",
+        masterAcceptedAt: new Date(),
+        rifVisibleToClient: true,
+        requesterName: "Carla Operacional",
+        requesterEmail: "adm.operacional@demo.cotacondo.com.br",
+        requesterRole: "Assistente de compras",
+      },
+    });
+
+    const winningInvite = await prisma.quotationInvite.upsert({
+      where: {
+        quotationId_supplierOrgId: {
+          quotationId: pendingApprovalQuotation.id,
+          supplierOrgId: fornecedorOrg.id,
+        },
+      },
+      update: { status: "aceito", supplierPipelineStage: "proposta_enviada" },
+      create: {
+        quotationId: pendingApprovalQuotation.id,
+        supplierOrgId: fornecedorOrg.id,
+        status: "aceito",
+        supplierPipelineStage: "proposta_enviada",
+      },
+    });
+
+    const winningProposal = await prisma.proposal.upsert({
+      where: { inviteId: winningInvite.id },
+      update: { status: "em_negociacao" },
+      create: {
+        inviteId: winningInvite.id,
+        organizationId: fornecedorOrg.id,
+        quotationId: pendingApprovalQuotation.id,
+        status: "em_negociacao",
+        createdByUserId: (
+          await prisma.user.findUniqueOrThrow({
+            where: { email: "fornecedor@demo.cotacondo.com.br" },
+          })
+        ).id,
+      },
+    });
+
+    await prisma.proposalCondition.deleteMany({ where: { proposalId: winningProposal.id } });
+    await prisma.proposalCondition.create({
+      data: {
+        proposalId: winningProposal.id,
+        amountCents: 1890000,
+        paymentTerms: "30 dias após execução",
+      },
+    });
+
+    await prisma.quotation.update({
+      where: { id: pendingApprovalQuotation.id },
+      data: { approvedProposalId: winningProposal.id, proposalsCount: 1 },
+    });
+
+    await prisma.rifAnalysis.deleteMany({ where: { quotationId: pendingApprovalQuotation.id } });
+    await prisma.rifAnalysis.create({
+      data: {
+        quotationId: pendingApprovalQuotation.id,
+        generatedByUserId: serviceMasterUser.id,
+        status: "published",
+        averageCents: 1890000,
+        summaryMarkdown:
+          "## Análise RIF\n\nProposta única dentro da média esperada para o segmento.",
+        comparativeJson: JSON.stringify([
+          {
+            proposalId: winningProposal.id,
+            supplierName: "Fornecedor Demo",
+            amountCents: 1890000,
+            paymentTerms: "30 dias após execução",
+            vsAverage: "na_media",
+            deltaPercent: 0,
+          },
+        ]),
+      },
+    });
+
+    const nextAppointment = new Date();
+    nextAppointment.setMonth(nextAppointment.getMonth() + 4);
+    await prisma.serviceAppointment.upsert({
+      where: { id: "appointment_demo_adm" },
+      update: {
+        appointmentDate: nextAppointment,
+        organizationId: admOrg.id,
+        serviceClientId: serviceClient.id,
+        condominiumId: admCondo.id,
+        categoryId: segurosCategory.id,
+        serviceItemId: serviceItem.id,
+      },
+      create: {
+        id: "appointment_demo_adm",
+        organizationId: admOrg.id,
+        serviceClientId: serviceClient.id,
+        condominiumId: admCondo.id,
+        categoryId: segurosCategory.id,
+        serviceItemId: serviceItem.id,
+        appointmentDate: nextAppointment,
+        leadMode: "days_30",
+        source: "manual",
+        createdByUserId: (
+          await prisma.user.findUniqueOrThrow({
+            where: { email: "adm.master@demo.cotacondo.com.br" },
+          })
+        ).id,
+        notes: "Demo — dedetização anual",
+      },
+    });
   }
 
   console.log("Seed concluído. Senha das contas demo: 123456");
   for (const demo of demos) {
     console.log(` - ${demo.email}`);
   }
+  console.log(" - aprovador@demo.cotacondo.com.br (Aprovador Externo)");
   console.log("Sincronize o Firebase Auth com: npm run seed:firebase-auth");
 }
 

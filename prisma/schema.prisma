@@ -37,6 +37,20 @@ enum ServiceAiApiMode {
 enum MemberRole {
   master
   operational
+  external_approver
+}
+
+enum AppointmentLeadMode {
+  exact_date
+  days_15
+  days_30
+  days_60
+  days_90
+}
+
+enum AppointmentSource {
+  approval
+  manual
 }
 
 enum PlanAudience {
@@ -77,6 +91,9 @@ model User {
   referralRewards      ReferralReward[] @relation("ReferralReferrer")
   referredRewards      ReferralReward[] @relation("ReferralReferred")
   notifications        Notification[]
+  externalApproverScopes ExternalApproverScope[]
+  externalApprovals    QuotationExternalApproval[]
+  serviceAppointmentsCreated ServiceAppointment[] @relation("AppointmentCreator")
 }
 
 enum QuotationStatus {
@@ -133,6 +150,8 @@ model Organization {
   serviceClientsManaged  ServiceClient[]           @relation("ServiceClientManager")
   serviceClientProfile   ServiceClient?            @relation("ServiceClientOrg")
   serviceQuotations      Quotation[]               @relation("ServiceManagedQuotations")
+  externalApproverScopes ExternalApproverScope[]
+  serviceAppointments    ServiceAppointment[]
 }
 
 model OrganizationMember {
@@ -229,6 +248,7 @@ model ServiceCategory {
   quotations         Quotation[]
   organizationLinks  OrganizationCategory[]
   favoriteLinks      FavoriteSupplier[]
+  serviceAppointments ServiceAppointment[]
 }
 
 model OrganizationCategory {
@@ -353,6 +373,7 @@ model Proposal {
   quotation    Quotation          @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   conditions   ProposalCondition[]
   messages     NegotiationMessage[]
+  externalApprovals QuotationExternalApproval[]
 
   @@index([organizationId, status])
   @@index([quotationId])
@@ -433,6 +454,7 @@ model ServiceItem {
   category           ServiceCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   quotations         Quotation[]
   organizationLinks  OrganizationCategory[]
+  serviceAppointments ServiceAppointment[]
 
   @@unique([categoryId, slug])
   @@index([categoryId])
@@ -455,6 +477,8 @@ model Condominium {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   quotations   Quotation[]
+  externalApproverScopes ExternalApproverScope[]
+  serviceAppointments    ServiceAppointment[]
 
   @@index([organizationId])
   @@index([organizationId, name])
@@ -504,6 +528,8 @@ model Quotation {
   invites          QuotationInvite[]
   proposals        Proposal[]
   rifAnalyses      RifAnalysis[]
+  externalApproval QuotationExternalApproval?
+  serviceAppointments ServiceAppointment[]
 
   @@index([organizationId, status])
   @@index([organizationId, createdAt])
@@ -536,6 +562,8 @@ model ServiceClient {
   clientOrg  Organization @relation("ServiceClientOrg", fields: [clientOrgId], references: [id], onDelete: Cascade)
   quotations Quotation[]
   managers   ServiceClientManager[]
+  externalApproverScopes ExternalApproverScope[]
+  serviceAppointments    ServiceAppointment[]
 
   @@index([managedByOrgId])
   @@index([solicitationLinkSlug])
@@ -926,6 +954,84 @@ model EmailToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, code])
+}
+
+/// Escopo de condomínios visíveis para um Aprovador Externo
+model ExternalApproverScope {
+  id              String   @id @default(cuid())
+  userId          String
+  organizationId  String
+  condominiumId   String
+  serviceClientId String?
+  createdAt       DateTime @default(now())
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  condominium   Condominium   @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  serviceClient ServiceClient? @relation(fields: [serviceClientId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, condominiumId])
+  @@index([organizationId])
+  @@index([serviceClientId])
+}
+
+/// Registro de aprovação externa com motivo e recorrência
+model QuotationExternalApproval {
+  id                        String    @id @default(cuid())
+  quotationId               String    @unique
+  approvedByUserId          String
+  proposalId                String?
+  reason                    String
+  nextContractDate          DateTime?
+  nextContractNotApplicable Boolean   @default(false)
+  rejected                  Boolean   @default(false)
+  rejectionReason           String?
+  approvedAt                DateTime  @default(now())
+  ip                        String?
+
+  quotation   Quotation           @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  approvedBy  User                @relation(fields: [approvedByUserId], references: [id], onDelete: Cascade)
+  proposal    Proposal?           @relation(fields: [proposalId], references: [id], onDelete: SetNull)
+  appointment ServiceAppointment?
+
+  @@index([approvedByUserId])
+  @@index([approvedAt])
+}
+
+/// Compromisso no Calendário de Serviços (aprovação ou cadastro manual)
+model ServiceAppointment {
+  id                 String              @id @default(cuid())
+  organizationId     String
+  serviceClientId    String?
+  condominiumId      String
+  categoryId         String
+  serviceItemId      String?
+  appointmentDate    DateTime
+  leadMode           AppointmentLeadMode
+  leadExactDate      DateTime?
+  source             AppointmentSource
+  quotationId        String?
+  externalApprovalId String?             @unique
+  createdByUserId    String
+  notes              String?
+  lastDispatchedAt   DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  serviceClient    ServiceClient?            @relation(fields: [serviceClientId], references: [id], onDelete: SetNull)
+  condominium      Condominium               @relation(fields: [condominiumId], references: [id], onDelete: Cascade)
+  category         ServiceCategory           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  serviceItem      ServiceItem?              @relation(fields: [serviceItemId], references: [id], onDelete: SetNull)
+  quotation        Quotation?                @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  externalApproval QuotationExternalApproval? @relation(fields: [externalApprovalId], references: [id], onDelete: SetNull)
+  createdBy        User                      @relation("AppointmentCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, appointmentDate])
+  @@index([serviceClientId, appointmentDate])
+  @@index([condominiumId])
+  @@index([categoryId])
+  @@index([quotationId])
 }
 
 model PasswordResetToken {

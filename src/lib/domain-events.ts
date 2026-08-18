@@ -250,6 +250,107 @@ export async function dispatchDomainEvent(input: {
       });
       break;
     }
+    case "service_quotation.external_approved": {
+      if (!quotationId) break;
+      const quotation = await prisma.quotation.findUnique({
+        where: { id: quotationId },
+        include: {
+          condominium: true,
+          organization: true,
+          proposals: {
+            where: { status: "aprovada" },
+            include: {
+              organization: true,
+              conditions: { orderBy: { sortOrder: "asc" }, take: 1 },
+            },
+          },
+        },
+      });
+      if (!quotation) break;
+
+      const winning = quotation.proposals[0];
+      const amountCents = winning?.conditions[0]?.amountCents;
+      const reason = asString(payload.reason) ?? "";
+      const requesterEmail = quotation.requesterEmail;
+
+      if (requesterEmail) {
+        await sendTemplatedEmail({
+          toEmail: requesterEmail,
+          subject: `Cotação aprovada — ${quotation.publicId}`,
+          bodyText: [
+            `A cotação ${quotation.publicId} foi aprovada pelo aprovador externo.`,
+            `Motivo: ${reason}`,
+            "",
+            "Dados do condomínio:",
+            `Nome: ${quotation.condominium.name}`,
+            `Endereço: ${quotation.condominium.address}`,
+            `CNPJ: ${quotation.condominium.document ?? "—"}`,
+            "",
+            `Valor da proposta vencedora: R$ ${((amountCents ?? 0) / 100).toFixed(2)}`,
+            `E-mail do solicitante: ${requesterEmail}`,
+          ].join("\n"),
+          template: "external_approval_solicitante",
+          metadata: { quotationId },
+        });
+      }
+
+      await notifyOrgMembers(quotation.organizationId, {
+        type: input.type,
+        title: "Aprovação externa confirmada",
+        body: `${quotation.publicId} — ${reason.slice(0, 120)}`,
+        href: `/app/cotacoes/${quotationId}`,
+        metadata: payload,
+      });
+
+      if (winning) {
+        const supplierMembers = await prisma.organizationMember.findMany({
+          where: { organizationId: winning.organizationId, role: "master" },
+          include: { user: true },
+        });
+        for (const member of supplierMembers) {
+          await sendTemplatedEmail({
+            toEmail: member.user.email,
+            subject: `Proposta aprovada — ${quotation.publicId}`,
+            bodyText: [
+              `Sua proposta foi aprovada na cotação ${quotation.publicId}.`,
+              `Motivo: ${reason}`,
+              "",
+              "Dados do condomínio:",
+              `Nome: ${quotation.condominium.name}`,
+              `Endereço: ${quotation.condominium.address}`,
+              "",
+              `Valor: R$ ${((amountCents ?? 0) / 100).toFixed(2)}`,
+              `Contato solicitante: ${requesterEmail ?? "—"}`,
+            ].join("\n"),
+            template: "external_approval_fornecedor",
+            metadata: { quotationId, proposalId: winning.id },
+          });
+        }
+      }
+      break;
+    }
+    case "service_quotation.external_rejected": {
+      if (!quotationId) break;
+      const quotation = await prisma.quotation.findUnique({
+        where: { id: quotationId },
+      });
+      if (!quotation?.requesterEmail) break;
+      await sendTemplatedEmail({
+        toEmail: quotation.requesterEmail,
+        subject: `Cotação recusada — ${quotation.publicId}`,
+        bodyText: `A cotação ${quotation.publicId} foi recusada pelo aprovador externo.\nMotivo: ${asString(payload.reason) ?? ""}`,
+        template: "external_rejection_solicitante",
+        metadata: { quotationId },
+      });
+      await notifyOrgMembers(quotation.organizationId, {
+        type: input.type,
+        title: "Cotação recusada pelo aprovador",
+        body: asString(payload.reason) ?? quotation.publicId,
+        href: `/app/service/cotacoes/${quotationId}`,
+        metadata: payload,
+      });
+      break;
+    }
     default:
       break;
   }

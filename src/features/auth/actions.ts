@@ -15,7 +15,9 @@ import {
   clearSessionCookie,
   createSessionToken,
   setSessionCookie,
+  type SessionPayload,
 } from "@/lib/auth/session";
+import { verifyPassword } from "@/lib/auth/password";
 import {
   firebaseSendPasswordResetEmail,
   firebaseSignInWithPassword,
@@ -232,6 +234,57 @@ export async function confirmEmailAction(formData: FormData): Promise<ActionResu
   }
 }
 
+function safeNextPath(value: FormDataEntryValue | null): string {
+  const path = String(value ?? "/app");
+  if (
+    (path.startsWith("/app") || path.startsWith("/checkout")) &&
+    !path.startsWith("//") &&
+    !path.includes("://")
+  ) {
+    return path;
+  }
+  return "/app";
+}
+
+async function tryLocalExternalApproverLogin(
+  email: string,
+  password: string,
+): Promise<SessionPayload | null> {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user?.passwordHash) return null;
+
+  const valid = await verifyPassword(password, user.passwordHash);
+  if (!valid) return null;
+
+  const membership = await prisma.organizationMember.findFirst({
+    where: { userId: user.id, role: MemberRole.external_approver },
+    include: { organization: true },
+  });
+  if (!membership) return null;
+
+  const scopeCount = await prisma.externalApproverScope.count({
+    where: { userId: user.id, organizationId: membership.organizationId },
+  });
+  if (scopeCount === 0) return null;
+
+  if (!user.emailVerifiedAt) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerifiedAt: new Date() },
+    });
+  }
+
+  return {
+    userId: user.id,
+    email: user.email,
+    name: user.name,
+    organizationId: membership.organization.id,
+    organizationType: membership.organization.type,
+    organizationName: membership.organization.name,
+    role: membership.role,
+  };
+}
+
 export async function loginAction(formData: FormData): Promise<ActionResult> {
   try {
     if (!isFirebaseAuthConfigured()) {
@@ -254,6 +307,24 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
       const firebaseUser = await firebaseSignInWithPassword(email, parsed.data.password);
       firebaseUid = firebaseUser.localId;
     } catch (error) {
+      const localSession = await tryLocalExternalApproverLogin(email, parsed.data.password);
+      if (localSession) {
+        const jwt = await createSessionToken(localSession);
+        await setSessionCookie(jwt);
+        await writeAuditLog({
+          userId: localSession.userId,
+          action: "auth.login_success",
+          entityType: "user",
+          entityId: localSession.userId,
+          metadata: { provider: "local", role: "external_approver" },
+        });
+        redirect(
+          localSession.role === MemberRole.external_approver
+            ? "/app/aprovador/cotacoes"
+            : safeNextPath(formData.get("next")),
+        );
+      }
+
       await writeAuditLog({
         action: "auth.login_failed",
         metadata: { emailDomain: email.split("@")[1] ?? "unknown", provider: "firebase" },
@@ -299,25 +370,17 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
       metadata: { provider: "firebase", firebaseUid },
     });
 
-    redirect(safeNextPath(formData.get("next")));
+    redirect(
+      sessionPayload.role === MemberRole.external_approver
+        ? "/app/aprovador/cotacoes"
+        : safeNextPath(formData.get("next")),
+    );
   } catch (error) {
     if (typeof error === "object" && error && "digest" in error) {
       throw error;
     }
     return { ok: false, message: toPublicErrorMessage(error) };
   }
-}
-
-function safeNextPath(value: FormDataEntryValue | null): string {
-  const path = String(value ?? "/app");
-  if (
-    (path.startsWith("/app") || path.startsWith("/checkout")) &&
-    !path.startsWith("//") &&
-    !path.includes("://")
-  ) {
-    return path;
-  }
-  return "/app";
 }
 
 export async function logoutAction() {

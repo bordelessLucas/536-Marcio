@@ -1,0 +1,116 @@
+import { prisma } from "@/lib/prisma";
+import type { ServicePipelineStatus } from "@prisma/client";
+import { getExternalApproverCondominiumIds } from "@/features/external-approver/guards";
+
+export type ExternalQuotationTab = "pendentes" | "aprovadas" | "recusadas";
+
+export async function listExternalApproverQuotations(input: {
+  userId: string;
+  organizationId: string;
+  tab: ExternalQuotationTab;
+}) {
+  const condominiumIds = await getExternalApproverCondominiumIds(
+    input.userId,
+    input.organizationId,
+  );
+  if (condominiumIds.length === 0) return [];
+
+  const baseWhere = {
+    organizationId: input.organizationId,
+    condominiumId: { in: condominiumIds },
+    serviceClientId: { not: null },
+    masterAcceptedAt: { not: null },
+    rifVisibleToClient: true,
+  };
+
+  const where =
+    input.tab === "pendentes"
+      ? {
+          ...baseWhere,
+          externalApproval: null,
+          servicePipelineStatus: {
+            in: ["em_analise", "em_negociacao"] as ServicePipelineStatus[],
+          },
+        }
+      : input.tab === "aprovadas"
+        ? {
+            ...baseWhere,
+            externalApproval: { rejected: false },
+            servicePipelineStatus: "aprovada" as ServicePipelineStatus,
+          }
+        : {
+            ...baseWhere,
+            OR: [
+              { servicePipelineStatus: "recusada" as ServicePipelineStatus },
+              { externalApproval: { rejected: true } },
+            ],
+          };
+
+  return prisma.quotation.findMany({
+    where,
+    include: {
+      condominium: true,
+      category: true,
+      serviceItem: true,
+      serviceClient: true,
+      externalApproval: true,
+      proposals: {
+        where: { status: { not: "recusada" } },
+        include: {
+          organization: true,
+          conditions: { orderBy: { sortOrder: "asc" } },
+        },
+      },
+      rifAnalyses: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
+export async function getExternalApproverQuotation(input: {
+  userId: string;
+  organizationId: string;
+  quotationId: string;
+}) {
+  const condominiumIds = await getExternalApproverCondominiumIds(
+    input.userId,
+    input.organizationId,
+  );
+  if (condominiumIds.length === 0) return null;
+
+  return prisma.quotation.findFirst({
+    where: {
+      id: input.quotationId,
+      organizationId: input.organizationId,
+      condominiumId: { in: condominiumIds },
+      serviceClientId: { not: null },
+      masterAcceptedAt: { not: null },
+      rifVisibleToClient: true,
+    },
+    include: {
+      condominium: true,
+      category: true,
+      serviceItem: true,
+      serviceClient: true,
+      organization: true,
+      externalApproval: true,
+      proposals: {
+        include: {
+          organization: true,
+          conditions: { orderBy: { sortOrder: "asc" } },
+        },
+      },
+      rifAnalyses: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
+  });
+}
+
+export async function getServiceClientBySlug(slug: string) {
+  return prisma.serviceClient.findFirst({
+    where: { solicitationLinkSlug: slug, solicitationLinkActive: true, isActive: true },
+    include: {
+      clientOrg: true,
+      managedBy: true,
+    },
+  });
+}
