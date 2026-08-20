@@ -16,22 +16,22 @@ export function NotificationBell({ unreadCount }: NotificationBellProps) {
     <div className="relative">
       <Link
         href="/app/notificacoes"
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-black/10 text-neutral-700 hover:bg-black/[0.04]"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#B9CAD8] bg-white text-[#173B57] shadow-sm transition-[background-color,border-color,color] hover:border-[#A7115F]/40 hover:bg-[#FCE7F3] hover:text-[#A7115F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A7115F]/40"
         aria-label={unreadCount > 0 ? `${unreadCount} notificações não lidas` : "Notificações"}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
       >
-        <Bell className="h-4 w-4" />
+        <Bell aria-hidden="true" className="h-4 w-4" />
         {unreadCount > 0 ? (
-          <span className="absolute -right-1 -top-1 inline-flex min-w-4 items-center justify-center rounded-full bg-[#C026D3] px-1 text-[10px] font-bold text-white">
+          <span className="absolute -right-1 -top-1 inline-flex min-w-4 items-center justify-center rounded-full bg-[#A7115F] px-1 text-[10px] font-bold text-white ring-2 ring-[#F7FAFC]">
             {badge}
           </span>
         ) : null}
       </Link>
       {open && unreadCount > 0 ? (
-        <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded-xl border border-black/5 bg-white p-3 text-xs shadow-lg">
+        <div className="absolute right-0 top-full z-30 mt-2 w-52 rounded-xl border border-[#CBD8E2] bg-white p-3 text-xs font-medium text-[#334E68] shadow-[0_14px_35px_-18px_rgba(15,42,67,0.55)]">
           {unreadCount} não lida{unreadCount === 1 ? "" : "s"}. Abrir central.
         </div>
       ) : null}

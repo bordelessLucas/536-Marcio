@@ -2,14 +2,14 @@
 
 :root {
   --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
-  --brand-magenta: #e11d8a;
+  --brand-magenta: #a7115f;
   --brand-purple: #9333ea;
   --brand-blue: #3b82f6;
-  --brand-teal: #14b8a6;
-  --ink: #0a0a0a;
-  --ink-body: #171717;
-  --ink-muted: #6b7280;
-  --canvas: #ffffff;
+  --brand-teal: #087f8c;
+  --ink: #102a43;
+  --ink-body: #243b53;
+  --ink-muted: #627d98;
+  --canvas: #f7fafc;
 }
 
 @theme inline {
@@ -38,11 +38,197 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-a {
+a:not([class]) {
   color: inherit;
   text-decoration: none;
 }
 
 ::selection {
-  background: rgba(147, 51, 234, 0.18);
+  background: rgba(167, 17, 95, 0.18);
+}
+
+/* Authenticated product surface */
+.app-skip-link {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  z-index: 100;
+  transform: translateY(-160%);
+  border-radius: 0.75rem;
+  background: #ffffff;
+  color: #102a43;
+  padding: 0.65rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  box-shadow: 0 12px 28px -14px rgba(15, 42, 67, 0.6);
+  transition: transform 160ms ease;
+}
+
+.app-skip-link:focus {
+  transform: translateY(0);
+  outline: 3px solid rgba(167, 17, 95, 0.38);
+  outline-offset: 2px;
+}
+
+.app-main > * {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+}
+
+.app-sidebar-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+  scrollbar-gutter: stable;
+}
+
+.app-sidebar-nav::-webkit-scrollbar {
+  width: 5px;
+}
+
+.app-sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-sidebar-nav::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.app-main h1,
+.app-main h2,
+.app-main h3 {
+  color: #102a43;
+  text-wrap: balance;
+}
+
+.app-main h1 {
+  letter-spacing: -0.035em;
+}
+
+.app-main p[class*="uppercase"][class*="tracking"] {
+  color: #a7115f !important;
+}
+
+.app-main :is(input, select, textarea) {
+  border-color: #b8cad7 !important;
+  background-color: #ffffff;
+  color: #102a43;
+  box-shadow: 0 1px 2px rgba(15, 42, 67, 0.04);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.app-main :is(input, select, textarea):hover:not(:disabled) {
+  border-color: #829ab1 !important;
+}
+
+.app-main :is(input, select, textarea):focus-visible {
+  border-color: #a7115f !important;
+  outline: 3px solid rgba(167, 17, 95, 0.16) !important;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 1px rgba(167, 17, 95, 0.2);
+}
+
+.app-main :is(input, textarea)::placeholder {
+  color: #627d98;
+  opacity: 1;
+}
+
+.app-main input:is([type="checkbox"], [type="radio"]) {
+  accent-color: #a7115f;
+}
+
+.app-main :is(button, a) {
+  -webkit-tap-highlight-color: rgba(167, 17, 95, 0.12);
+  touch-action: manipulation;
+}
+
+.app-main :is(button, a):focus-visible {
+  outline: 3px solid rgba(167, 17, 95, 0.28);
+  outline-offset: 2px;
+}
+
+.app-main button[class*="bg-black"] {
+  border: 1px solid #a9c0cf;
+  background: #dce8ef !important;
+  color: #173b57 !important;
+  box-shadow: 0 3px 10px -7px rgba(15, 42, 67, 0.65);
+}
+
+.app-main button[class*="bg-black"]:hover {
+  border-color: #7895a8;
+  background: #cbdce6 !important;
+}
+
+.app-main button[class*="bg-[#9333EA]"],
+.app-main button[class*="linear-gradient"] {
+  background: #a7115f !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px -10px rgba(167, 17, 95, 0.72);
+}
+
+.app-main button[class*="bg-[#9333EA]"]:hover,
+.app-main button[class*="linear-gradient"]:hover {
+  background: #8f0e52 !important;
+}
+
+.app-main [class*="rounded-2xl"][class*="border"][class*="bg-white"],
+.app-main [class*="rounded-3xl"][class*="border"][class*="bg-white"] {
+  border-color: #ccd9e2 !important;
+  background: linear-gradient(145deg, #ffffff 0%, #fbfdfe 58%, #f2f7f9 100%) !important;
+  box-shadow: 0 12px 30px -24px rgba(15, 42, 67, 0.55), 0 1px 2px rgba(15, 42, 67, 0.04);
+}
+
+.app-main [class*="rounded-xl"][class*="border-black"] {
+  border-color: #c7d5df !important;
+}
+
+.app-main [class*="border-dashed"] {
+  border-color: #9fb5c5 !important;
+  background-color: rgba(235, 243, 247, 0.72);
+}
+
+.app-main table thead,
+.app-main [class*="bg-neutral-50"] {
+  background-color: #edf4f7 !important;
+}
+
+.app-main table th {
+  color: #334e68;
+  font-weight: 700;
+}
+
+.app-main table tbody tr {
+  transition: background-color 140ms ease;
+}
+
+.app-main table tbody tr:hover {
+  background-color: rgba(220, 232, 239, 0.55);
+}
+
+.app-main [class*="text-neutral-400"] {
+  color: #627d98 !important;
+}
+
+.app-main [class*="text-neutral-500"] {
+  color: #526d82 !important;
+}
+
+.app-main [class*="text-neutral-600"] {
+  color: #3e5c70 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .app-shell *,
+  .app-shell *::before,
+  .app-shell *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
